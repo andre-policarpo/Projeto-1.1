@@ -33,7 +33,8 @@ with tab1:
     if fl is not None:
         df = pd.read_csv(fl)
     else:
-        df = pd.read_csv('C:/Users/andre.policarpo/resultados_faturas.csv') # caminho padrão do arquivo local
+        st.info("Por favor, carregue um arquivo para visualizar seus dados.")
+        st.stop()
 
 # Confirmação de que as datas estão no formato correto
 # Caso contrario, converter mes_ref para datetime (formato 'MM/AAAA')
