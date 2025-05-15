@@ -137,7 +137,7 @@ with tab3:
     if not df_filtrado.empty:
         st.subheader(f"Dados filtrados: {mes_inicio}/{ano_inicio} até {mes_fim}/{ano_fim}")
         st.dataframe(df_filtrado[['mes_ref', 'consumo_m3', 'valor_total']])
-        valorf = str(prettify(f'{df_filtrado['valor_total'].sum():.2f}','.')).replace('.',',')
+        valorf = str(prettify(f"{df_filtrado['valor_total'].sum():.2f}",'.')).replace('.',',')
         valorf = valorf.replace(',','.',valorf.count(',')-1)
         mediaf = str(f'{df_filtrado['consumo_m3'].mean():.2f}').replace('.',',')
         colm1, colm2, colm3 = st.columns(3)
