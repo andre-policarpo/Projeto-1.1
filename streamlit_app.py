@@ -139,7 +139,7 @@ with tab3:
         st.dataframe(df_filtrado[['mes_ref', 'consumo_m3', 'valor_total']])
         valorf = str(prettify(f"{df_filtrado['valor_total'].sum():.2f}",'.')).replace('.',',')
         valorf = valorf.replace(',','.',valorf.count(',')-1)
-        mediaf = str(f'{df_filtrado['consumo_m3'].mean():.2f}').replace('.',',')
+        mediaf = str(f"{df_filtrado['consumo_m3'].mean():.2f}").replace('.',',')
         colm1, colm2, colm3 = st.columns(3)
         colm1.metric("Total de Consumo (m³)", f"{prettify(df_filtrado['consumo_m3'].sum(),'.')}")
         colm2.metric("Valor Total (R$)", f"R$ {valorf}")    
