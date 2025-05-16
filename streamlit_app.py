@@ -12,14 +12,8 @@ st.title("📊 Análise de Gastos - MIDR")
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs(['Início','Visão Geral','Análise por Intervalo de Tempo','Análise Comparativa','Sobre'])
 
-tipo_conta = st.sidebar.selectbox(
-    'Qual tipo de conta será enviada?',
-    ('Conta de água(CAESB)','Conta de energia(CEB)')
-)
-
-
-
 with tab1:
+    # Texto introdutório
     st.header('Bem Vindo(a)!')
     st.text('Este é um sistema experimental dedicado à análise de gastos do Ministério da Integração e do Desenvolvimento Regional.\n' \
     'Aqui, a ideia é simples: o site recebe seu arquivo, dentro das especificações de formatação, e exibe seus dados em diversos gráficos comparativos ' \
@@ -28,13 +22,63 @@ with tab1:
     'esteja formatado.')
     st.badge('Em construção', icon=':material/info:', color='orange')
     st.divider()
+    # Texto com instruções para envio de arquivos
+    st.header('Atenção!')
 
-    fl = st.file_uploader('📁 Use o botão abaixo para carregar um arquivo local, ou arraste-o até a área.', type=['csv','txt','xlsx','xls'])
-    if fl is not None:
-        df = pd.read_csv(fl)
-    else:
-        st.info("Por favor, carregue um arquivo para visualizar seus dados.")
+    st.divider()
+    # Seletor interativo que determina as medidas da conta que esta sendo lida
+    select_conta = st.selectbox(
+        "Qual tipo de fatura será enviada?",
+        ('Conta de água(CAESB)','Conta de energia(CEB)'),
+         index=None,
+         placeholder="Selecione o tipo de conta...",
+    )
+    st.write('Você está analisando:', select_conta)
+
+    if select_conta is None:
+        st.info('👆 Escola um tipo de conta para prosseguir com o envio.')
         st.stop()
+    elif select_conta == 'Conta de água(CAESB)':
+        metrica = 'm³'
+        medicao = 'água'
+    elif select_conta == 'Conta de energia(CEB)':
+        metrica = 'KW/h'
+        medicao = 'energia'
+    
+    # Caso desejado, o usuário pode optar por carregar um arquivo genérico pré-pronto, para testar o site
+    if st.button("📊 Carregar arquivo de exemplo"):
+        st.error("Essa função ainda está em construção!")
+        
+
+    
+    # Botão interativo para carregamento de arquivos 
+    fl = st.file_uploader('📁 Use o botão abaixo para carregar um arquivo local, ou arraste-o até a área.', type=['csv','txt','xlsx'])
+    if fl is None or st.button is False:
+        st.info("👆 Carregue um arquivo para visualizar seus dados.")
+        st.stop()
+    
+    # Carregamento do arquivo conforme a extensão
+    file_extension = fl.name.split('.')[-1].lower()
+    if file_extension in ['csv','txt']:
+        try:
+            df = pd.read_csv(fl,sep=None,engine='python')
+        except Exception as e:
+            st.error(f"Erro ao carregar o arquivo CSV: {e}")
+            st.stop()
+    elif file_extension in ['xlsx','xls']:
+        try:
+            df = pd.read_excel(fl)
+        except Exception as e:
+            st.error(f"Erro ao carregar o arquivo Excel: {e}")
+    #Verificar se o DataFrame foi carregado corretamente
+    if df.empty:
+        st.error("O arquivo carregado não contém dados. Por favor, verifique o arquivo e tente novamente.")
+        st.stop()
+    # Mostrar uma prévia dos dados carregados
+    st.success(f"✅ Arquivo '{fl.name}' carregado com sucesso!")
+
+
+
 
 # Confirmação de que as datas estão no formato correto
 # Caso contrario, converter mes_ref para datetime (formato 'MM/AAAA')
@@ -70,19 +114,19 @@ with tab2:
                 prev = df[df['ano'] == anos[i-1]].iloc[-1]
                 df_con = pd.DataFrame([prev, df_ano.iloc[0]])
                 fig.add_trace(go.Scatter(
-                    x=df_con['data_plotly'], y=df_con['consumo_m3'], mode='lines',
+                    x=df_con['data_plotly'], y=df_con['consumo_mensal'], mode='lines',
                     line=dict(width=2, color='gray', dash='dot'), showlegend=False, hoverinfo='skip'
                 ))
             fig.add_trace(go.Scatter(
-                x=df_ano['data_plotly'], y=df_ano['consumo_m3'],
+                x=df_ano['data_plotly'], y=df_ano['consumo_mensal'],
                 mode='lines+markers',
                 line=dict(width=3, color=cores[ano]),
                 marker=dict(size=8, color=cores[ano]),
                 name=f'Ano {ano}',
-                hovertemplate='<b>Mês:</b> %{x|%b/%Y}<br><b>Consumo:</b> %{y} m³<extra></extra>'
+                hovertemplate='<b>Mês:</b> %{x|%b/%Y}<br><b>Consumo:</b> %{y}<extra></extra>'
             ))
         fig.update_layout(
-            title="Evolução do Consumo de Água ao Longo do Tempo",
+            title= f"Evolução do Consumo de {medicao} ao Longo do Tempo",
             height=500,
             hovermode="x unified",
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
@@ -137,23 +181,23 @@ with tab3:
 
     if not df_filtrado.empty:
         st.subheader(f"Dados filtrados: {mes_inicio}/{ano_inicio} até {mes_fim}/{ano_fim}")
-        st.dataframe(df_filtrado[['mes_ref', 'consumo_m3', 'valor_total']])
-        valorf = str(prettify(f"{df_filtrado['valor_total'].sum():.2f}",'.')).replace('.',',')
-        valorf = valorf.replace(',','.',valorf.count(',')-1)
-        mediaf = str(f"{df_filtrado['consumo_m3'].mean():.2f}").replace('.',',')
+        st.dataframe(df_filtrado[['mes_ref', 'consumo_mensal', 'valor_mensal']])
+        valor_intervalo = str(prettify(f"{df_filtrado['valor_mensal'].sum():.2f}",'.')).replace('.',',')
+        valor_intervalo = valor_intervalo.replace(',','.',valor_intervalo.count(',')-1)
+        media_intervalo = str(f"{df_filtrado['consumo_mensal'].mean():.2f}").replace('.',',')
         colm1, colm2, colm3 = st.columns(3)
-        colm1.metric("Total de Consumo (m³)", f"{prettify(df_filtrado['consumo_m3'].sum(),'.')}")
-        colm2.metric("Valor Total (R$)", f"R$ {valorf}")    
-        colm3.metric("Média Mensal (m³)", f"{mediaf}")
+        colm1.metric(f"Total de Consumo ({metrica})", f"{prettify(df_filtrado['consumo_mensal'].sum(),'.')}")
+        colm2.metric("Valor Total (R$)", f"R$ {valor_intervalo}")    
+        colm3.metric(f"Média Mensal ({metrica})", f"{media_intervalo}")
 
         # Gráfico de Consumo Mensal
         st.plotly_chart(
             px.bar(
                 df_filtrado,
                 x='mes_ref',
-                y='consumo_m3',
-                title='Consumo Mensal de Água (m³)',
-                labels={'consumo_m3': 'Consumo (m³)', 'mes_ref': 'Mês/Ano'},
+                y='consumo_mensal',
+                title=f"Consumo Mensal de {medicao} ({metrica})",
+                labels={'consumo_mensal': f'Consumo ({metrica})', 'mes_ref': 'Mês/Ano'},
                 color='ano_str',
                 color_discrete_map=cores_str,
                 text_auto=True
@@ -165,9 +209,9 @@ with tab3:
             px.line(
                 df_filtrado,
                 x='mes_ref',
-                y='valor_total',
-                title='Valor Total da Fatura (R$)',
-                labels={'valor_total': 'Valor (R$)', 'mes_ref': 'Mês/Ano'},
+                y='valor_mensal',
+                title='Valor Mensal da Fatura (R$)',
+                labels={'valor_mensal': 'Valor (R$)', 'mes_ref': 'Mês/Ano'},
                 color= 'ano_str',
                 markers=True,
                 color_discrete_map=cores_str
@@ -212,7 +256,7 @@ with tab4:
             df_ano = df_comp[df_comp['ano'] == ano]
             fig_comp1.add_trace(go.Scatter(
                 x=df_ano['mes_num'],
-                y=df_ano['consumo_m3'],
+                y=df_ano['consumo_mensal'],
                 mode='lines+markers',
                 name=f"Ano {ano}",
                 line=dict(width=3, color=cores[ano]),
@@ -237,7 +281,7 @@ with tab4:
             df_ano = df_comp[df_comp['ano'] == ano]
             fig_comp2.add_trace(go.Scatter(
                 x=df_ano['mes_num'],
-                y=df_ano['valor_total'],
+                y=df_ano['valor_mensal'],
                 mode='lines+markers',
                 name=f"Ano {ano}",
                 line=dict(width=3, color=cores[ano]),
