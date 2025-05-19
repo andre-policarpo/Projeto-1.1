@@ -93,7 +93,6 @@ with tab1:
     
     # Tratamento do arquivo enviado com base no formato de documento
     if not exemplo_ativado and fl is not None:
-        file_extension = fl.name.split('.')[-1].lower()
         if file_extension in ['csv','txt']:
             try:
                 if file_extension in ['csv','txt']:
