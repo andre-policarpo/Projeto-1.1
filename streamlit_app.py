@@ -175,161 +175,158 @@ with tab2:
             )
         )
         return fig
-
-    if not df.empty():
-        # Plot do gráfico de linha do tempo, scroller horizontal e legendas
-        st.header("Linha do Tempo Geral")
-        st.plotly_chart(grafico_timeline(), use_container_width=True)
-        st.caption("Use o gráfico secundário como rolador horizontal para visualizar a linha do tempo.")
+    
+    # Plot do gráfico de linha do tempo, scroller horizontal e legendas
+    st.header("Linha do Tempo Geral")
+    st.plotly_chart(grafico_timeline(), use_container_width=True)
+    st.caption("Use o gráfico secundário como rolador horizontal para visualizar a linha do tempo.")
 
 # 3. Seção de Análise dos Dados por Intervalo de Tempo (gráficos de consumo e custo, exibição dos dados filtrados no intervalo, como somatório do valor, consumo e média de gasto)
 with tab3:
-    if not df.empty():
-        st.header("Análise por Intervalo de Tempo")
+    st.header("Análise por Intervalo de Tempo")
 
-        col1, col2 = st.columns(2)
-        with col1:
-            ano_inicio = st.selectbox('Ano Inicial', anos, key='ano_inicio')
-            meses_do_ano_inicio = df[df['ano'] == ano_inicio]['mes'].unique()
-            meses_dict = {'Janeiro': 1, 'Fevereiro': 2, 'Março': 3, 'Abril': 4, 'Maio': 5, 'Junho': 6,
-                        'Julho': 7, 'Agosto': 8, 'Setembro': 9, 'Outubro': 10, 'Novembro': 11, 'Dezembro': 12}
-            meses_do_ano_inicio = sorted(meses_do_ano_inicio, key=lambda x: meses_dict[x])
-            mes_inicio = st.selectbox('Mês Inicial', meses_do_ano_inicio, key='mes_inicio')
-            mes_inicio_num = meses_dict[mes_inicio]
+    col1, col2 = st.columns(2)
+    with col1:
+        ano_inicio = st.selectbox('Ano Inicial', anos, key='ano_inicio')
+        meses_do_ano_inicio = df[df['ano'] == ano_inicio]['mes'].unique()
+        meses_dict = {'Janeiro': 1, 'Fevereiro': 2, 'Março': 3, 'Abril': 4, 'Maio': 5, 'Junho': 6,
+                    'Julho': 7, 'Agosto': 8, 'Setembro': 9, 'Outubro': 10, 'Novembro': 11, 'Dezembro': 12}
+        meses_do_ano_inicio = sorted(meses_do_ano_inicio, key=lambda x: meses_dict[x])
+        mes_inicio = st.selectbox('Mês Inicial', meses_do_ano_inicio, key='mes_inicio')
+        mes_inicio_num = meses_dict[mes_inicio]
 
-        with col2:
-            ano_fim = st.selectbox('Ano Final', anos, index=len(anos)-1, key='ano_fim')
-            meses_do_ano_fim = df[df['ano'] == ano_fim]['mes'].unique()
-            meses_do_ano_fim = sorted(meses_do_ano_fim, key=lambda x: meses_dict[x])
-            mes_fim = st.selectbox('Mês Final', meses_do_ano_fim, index=len(meses_do_ano_fim)-1, key='mes_fim')
-            mes_fim_num = meses_dict[mes_fim]
+    with col2:
+        ano_fim = st.selectbox('Ano Final', anos, index=len(anos)-1, key='ano_fim')
+        meses_do_ano_fim = df[df['ano'] == ano_fim]['mes'].unique()
+        meses_do_ano_fim = sorted(meses_do_ano_fim, key=lambda x: meses_dict[x])
+        mes_fim = st.selectbox('Mês Final', meses_do_ano_fim, index=len(meses_do_ano_fim)-1, key='mes_fim')
+        mes_fim_num = meses_dict[mes_fim]
 
-        # Criação do DataFrame filtrado pelo intervalo de tempo selecionado com botões interativos
-        data_inicio = pd.Timestamp(year=ano_inicio, month=mes_inicio_num, day=1)
-        data_fim = pd.Timestamp(year=ano_fim, month=mes_fim_num, day=1) + pd.offsets.MonthEnd(0)
-        df_filtrado = df[(df['data_plotly'] >= data_inicio) & (df['data_plotly'] <= data_fim)]
-        df_filtrado['ano_str'] = df_filtrado['ano'].astype(str)
-        cores_str = {str(ano): cor for ano, cor in cores.items()}
+    # Criação do DataFrame filtrado pelo intervalo de tempo selecionado com botões interativos
+    data_inicio = pd.Timestamp(year=ano_inicio, month=mes_inicio_num, day=1)
+    data_fim = pd.Timestamp(year=ano_fim, month=mes_fim_num, day=1) + pd.offsets.MonthEnd(0)
+    df_filtrado = df[(df['data_plotly'] >= data_inicio) & (df['data_plotly'] <= data_fim)]
+    df_filtrado['ano_str'] = df_filtrado['ano'].astype(str)
+    cores_str = {str(ano): cor for ano, cor in cores.items()}
 
-        if not df_filtrado.empty:
-            st.subheader(f"Dados filtrados: {mes_inicio}/{ano_inicio} até {mes_fim}/{ano_fim}")
-            st.dataframe(df_filtrado[['mes', 'ano', 'consumo_mensal', 'valor_mensal']] if 'mes_ref' not in df_filtrado.columns else df_filtrado[['mes_ref', 'consumo_mensal', 'valor_mensal']])
-            valor_intervalo = str(prettify(f"{df_filtrado['valor_mensal'].sum():.2f}",'.')).replace('.',',')
-            valor_intervalo = valor_intervalo.replace(',','.',valor_intervalo.count(',')-1)
-            media_intervalo = str(f"{df_filtrado['consumo_mensal'].mean():.2f}").replace('.',',')
-            colm1, colm2, colm3 = st.columns(3)
-            colm1.metric(f"Total de Consumo ({metrica})", f"{prettify(df_filtrado['consumo_mensal'].sum(),'.')}")
-            colm2.metric("Valor Total (R$)", f"R$ {valor_intervalo}")    
-            colm3.metric(f"Média Mensal ({metrica})", f"{media_intervalo}")
+    if not df_filtrado.empty:
+        st.subheader(f"Dados filtrados: {mes_inicio}/{ano_inicio} até {mes_fim}/{ano_fim}")
+        st.dataframe(df_filtrado[['mes', 'ano', 'consumo_mensal', 'valor_mensal']] if 'mes_ref' not in df_filtrado.columns else df_filtrado[['mes_ref', 'consumo_mensal', 'valor_mensal']])
+        valor_intervalo = str(prettify(f"{df_filtrado['valor_mensal'].sum():.2f}",'.')).replace('.',',')
+        valor_intervalo = valor_intervalo.replace(',','.',valor_intervalo.count(',')-1)
+        media_intervalo = str(f"{df_filtrado['consumo_mensal'].mean():.2f}").replace('.',',')
+        colm1, colm2, colm3 = st.columns(3)
+        colm1.metric(f"Total de Consumo ({metrica})", f"{prettify(df_filtrado['consumo_mensal'].sum(),'.')}")
+        colm2.metric("Valor Total (R$)", f"R$ {valor_intervalo}")    
+        colm3.metric(f"Média Mensal ({metrica})", f"{media_intervalo}")
 
-            eixo_x = 'data_plotly'
-            if 'mes_ref' in df_filtrado.columns:
-                eixo_x = 'mes_ref'
+        eixo_x = 'data_plotly'
+        if 'mes_ref' in df_filtrado.columns:
+            eixo_x = 'mes_ref'
 
-            st.plotly_chart(
-                px.bar(
-                    df_filtrado,
-                    x=eixo_x,
-                    y='consumo_mensal',
-                    title=f"Consumo Mensal de {medicao} ({metrica})",
-                    labels={'consumo_mensal': f'Consumo ({metrica})', eixo_x: 'Mês/Ano'},
-                    color='ano_str',
-                    color_discrete_map=cores_str,
-                    text_auto=True
-                ).update_layout(legend_title_text='Ano', height=400, legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1)),
-                use_container_width=True
-            )
-            
-            st.plotly_chart(
-                px.line(
-                    df_filtrado,
-                    x=eixo_x,
-                    y='valor_mensal',
-                    title='Valor Mensal da Fatura (R$)',
-                    labels={'valor_mensal': 'Valor (R$)', eixo_x: 'Mês/Ano'},
-                    color='ano_str',
-                    markers=True,
-                    color_discrete_map=cores_str
-                ).update_layout(legend_title_text='Ano', height=400, legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1)),
-                use_container_width=True
-            )
+        st.plotly_chart(
+            px.bar(
+                df_filtrado,
+                x=eixo_x,
+                y='consumo_mensal',
+                title=f"Consumo Mensal de {medicao} ({metrica})",
+                labels={'consumo_mensal': f'Consumo ({metrica})', eixo_x: 'Mês/Ano'},
+                color='ano_str',
+                color_discrete_map=cores_str,
+                text_auto=True
+            ).update_layout(legend_title_text='Ano', height=400, legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1)),
+            use_container_width=True
+        )
+        
+        st.plotly_chart(
+            px.line(
+                df_filtrado,
+                x=eixo_x,
+                y='valor_mensal',
+                title='Valor Mensal da Fatura (R$)',
+                labels={'valor_mensal': 'Valor (R$)', eixo_x: 'Mês/Ano'},
+                color='ano_str',
+                markers=True,
+                color_discrete_map=cores_str
+            ).update_layout(legend_title_text='Ano', height=400, legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1)),
+            use_container_width=True
+        )
 
-        else:
-            st.warning("Nenhum dado encontrado para o período selecionado. Por favor, ajuste os filtros.")
+    else:
+        st.warning("Nenhum dado encontrado para o período selecionado. Por favor, ajuste os filtros.")
 
 with tab4:
-    if not df.empty():
-        st.header("Comparativo Ano a Ano")
+    st.header("Comparativo Ano a Ano")
 
-        anos_para_comparar = st.multiselect(
-            "Selecione um ou mais anos para comparação:",
-            anos,
-            default=anos if len(anos) <= 3 else anos[-2:]
+    anos_para_comparar = st.multiselect(
+        "Selecione um ou mais anos para comparação:",
+        anos,
+        default=anos if len(anos) <= 3 else anos[-2:]
+    )
+    if len(anos_para_comparar) < 2:
+        st.info("Selecione pelo menos dois anos para visualização comparativa.")
+    else:
+        df_comp = df[df['ano'].isin(anos_para_comparar)].copy()
+    
+        if 'mes_num' not in df_comp.columns:
+            if 'mes' in df_comp.columns and isinstance(df_comp['mes'].iloc[0], str):
+                df_comp['mes_num'] = df_comp['mes'].map(meses_dict)
+            else:
+                df_comp['mes_num'] = df_comp['mes']
+    
+        df_comp.sort_values(['ano', 'mes_num'], inplace=True)
+    
+        fig_comp1 = go.Figure()
+        for ano in anos_para_comparar:
+            df_ano = df_comp[df_comp['ano'] == ano]
+            fig_comp1.add_trace(go.Scatter(
+                x=df_ano['mes_num'],
+                y=df_ano['consumo_mensal'],
+                mode='lines+markers',
+                name=f"Ano {ano}",
+                line=dict(width=3, color=cores[ano]),
+                marker=dict(size=8, color=cores[ano]),
+                hovertemplate='<b>Mês:</b> %{x}<br><b>Consumo:</b> %{y} m³<extra></extra>'
+            ))
+        fig_comp1.update_layout(
+            xaxis = dict(
+                tickmode='array',
+                tickvals=list(meses_dict.values()),
+                ticktext=list(meses_dict.keys()),
+                title='Mês'
+            ),
+            yaxis_title='Consumo(m³)',
+            title="Comparativo de Consumo Mensal: Anos Selecionados",
+            height=500,
+            legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
+            hovermode='x'
         )
-        if len(anos_para_comparar) < 2:
-            st.info("Selecione pelo menos dois anos para visualização comparativa.")
-        else:
-            df_comp = df[df['ano'].isin(anos_para_comparar)].copy()
         
-            if 'mes_num' not in df_comp.columns:
-                if 'mes' in df_comp.columns and isinstance(df_comp['mes'].iloc[0], str):
-                    df_comp['mes_num'] = df_comp['mes'].map(meses_dict)
-                else:
-                    df_comp['mes_num'] = df_comp['mes']
+        fig_comp2 = go.Figure()
+        for ano in anos_para_comparar:
+            df_ano = df_comp[df_comp['ano'] == ano]
+            fig_comp2.add_trace(go.Scatter(
+                x=df_ano['mes_num'],
+                y=df_ano['valor_mensal'],
+                mode='lines+markers',
+                name=f"Ano {ano}",
+                line=dict(width=3, color=cores[ano]),
+                marker=dict(size=8, color=cores[ano]),
+                hovertemplate='<b>Mês:</b> %{x}<br><b>Valor:</b> R$ %{y}<extra></extra>' 
+            ))
+        fig_comp2.update_layout(
+            xaxis = dict(
+                tickmode='array',
+                tickvals=list(meses_dict.values()),
+                ticktext=list(meses_dict.keys()),
+                title='Mês'
+            ),
+            yaxis_title='Valor(R$)',
+            title="Comparativo de Valor Mensal: Anos Selecionados",
+            height=500,
+            legend=dict(orientation='h',yanchor='bottom',y=1.02,xanchor='right',x=1),
+            hovermode='x'
+        )
         
-            df_comp.sort_values(['ano', 'mes_num'], inplace=True)
-        
-            fig_comp1 = go.Figure()
-            for ano in anos_para_comparar:
-                df_ano = df_comp[df_comp['ano'] == ano]
-                fig_comp1.add_trace(go.Scatter(
-                    x=df_ano['mes_num'],
-                    y=df_ano['consumo_mensal'],
-                    mode='lines+markers',
-                    name=f"Ano {ano}",
-                    line=dict(width=3, color=cores[ano]),
-                    marker=dict(size=8, color=cores[ano]),
-                    hovertemplate='<b>Mês:</b> %{x}<br><b>Consumo:</b> %{y} m³<extra></extra>'
-                ))
-            fig_comp1.update_layout(
-                xaxis = dict(
-                    tickmode='array',
-                    tickvals=list(meses_dict.values()),
-                    ticktext=list(meses_dict.keys()),
-                    title='Mês'
-                ),
-                yaxis_title='Consumo(m³)',
-                title="Comparativo de Consumo Mensal: Anos Selecionados",
-                height=500,
-                legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
-                hovermode='x'
-            )
-            
-            fig_comp2 = go.Figure()
-            for ano in anos_para_comparar:
-                df_ano = df_comp[df_comp['ano'] == ano]
-                fig_comp2.add_trace(go.Scatter(
-                    x=df_ano['mes_num'],
-                    y=df_ano['valor_mensal'],
-                    mode='lines+markers',
-                    name=f"Ano {ano}",
-                    line=dict(width=3, color=cores[ano]),
-                    marker=dict(size=8, color=cores[ano]),
-                    hovertemplate='<b>Mês:</b> %{x}<br><b>Valor:</b> R$ %{y}<extra></extra>' 
-                ))
-            fig_comp2.update_layout(
-                xaxis = dict(
-                    tickmode='array',
-                    tickvals=list(meses_dict.values()),
-                    ticktext=list(meses_dict.keys()),
-                    title='Mês'
-                ),
-                yaxis_title='Valor(R$)',
-                title="Comparativo de Valor Mensal: Anos Selecionados",
-                height=500,
-                legend=dict(orientation='h',yanchor='bottom',y=1.02,xanchor='right',x=1),
-                hovermode='x'
-            )
-            
-            st.plotly_chart(fig_comp1, use_container_width=True)
-            st.plotly_chart(fig_comp2, use_container_width=True)
+        st.plotly_chart(fig_comp1, use_container_width=True)
+        st.plotly_chart(fig_comp2, use_container_width=True)
