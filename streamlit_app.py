@@ -1,331 +1,622 @@
-# Bibliotecas necessárias
 import streamlit as st
 import pandas as pd
-import numpy as np
-import random
 import plotly.graph_objects as go
 import plotly.express as px
-from millify import prettify
+import numpy as np
+import calendar
+from datetime import datetime
+import io
 
-# Inicialização da página
-df = pd.DataFrame()
+# Função para gerar dicionário de cores por ano
+def gerar_cores_por_ano(anos):
+    """
+    Atribui uma cor consistente para cada ano usando uma paleta qualitativa
+    """
+    paleta = px.colors.qualitative.Set1
+    return {ano: paleta[i % len(paleta)] for i, ano in enumerate(sorted(anos))}
 
-st.set_page_config(page_title='Dashboard de Gastos MIDR', page_icon='📊', layout='wide')
-st.title("📊 Análise de Gastos - MIDR")
+# Configuração da página
+st.set_page_config(page_title='Dashboard de Análise de Faturas', page_icon='📊', layout='wide')
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(['Início','Visão Geral','Análise por Intervalo de Tempo','Análise Comparativa','Sobre'])
+# Definindo cores consistentes para todo o aplicativo
+COLORS = {
+    'valor': '#1f77b4',  # Azul para valores monetários
+    'consumo': '#ff7f0e',  # Laranja para consumo
+}
 
-
-# 1. Introdução e Carregamento de Arquivos
-with tab1:
-    # Texto de início
-    st.header('Bem Vindo(a)!')
-    st.text('Este é um sistema experimental dedicado à análise de gastos do Ministério da Integração e do Desenvolvimento Regional.\n' \
-    'Aqui, a ideia é simples: o site recebe seu arquivo, dentro das especificações de formatação, e exibe seus dados em diversos gráficos comparativos ' \
-    'que facilitam a visualização e interpretação desses dados.\nIdealizado para receber informações de faturas de água e energia, é importante que os arquivos ' \
-    'enviados sigam uma certa estrutura, afim de que a leitura seja realizada corretamente. A seguir, será abordada a maneira na qual se espera que o arquivo enviado ' \
-    'esteja formatado.')
-    st.badge('Em construção', icon=':material/info:', color='orange')
-    st.divider()
-    st.header('Atenção!')
-    st.text('Para garantir que a leitura do arquivo enviado seja feita sem erros pelo sistema,')
-    st.divider()
-    
-    # Botão seletor de tipo de fatura para análise
-    select_conta = st.selectbox(
-        "Qual tipo de fatura será enviada?",
-        ('Conta de água(CAESB)','Conta de energia(CEB)'),
-         index=None,
-         placeholder="Selecione o tipo de conta...",
-    )
-    st.write('Você está analisando:', select_conta)
-    
-    # Checar se o tipo de conta foi selecionada antes de prosseguir para envio
-    if select_conta is None:
-        st.info('👆 Escolha um tipo de conta para prosseguir com o envio.')
-        st.stop()
-    elif select_conta == 'Conta de água(CAESB)':
-        metrica = 'm³'
-        medicao = 'água'
-    elif select_conta == 'Conta de energia(CEB)':
-        metrica = 'KW/h'
-        medicao = 'energia'
-    
-    # Carregar um exemplo de DataFrame aleatório como DEMO do site
-    exemplo_ativado = st.button("📊 Carregar arquivo de exemplo")
-
-    if exemplo_ativado:
-        anos_exemplo = random.sample(range(2020, 2031), random.randint(2, 4))
-        meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
-                'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
-        
-        dados_exemplo = []
-        for ano in anos_exemplo:
-            for mes in meses:
-                consumo = np.random.randint(150, 550)
-                valor = np.random.randint(7000, 20000)
-                dados_exemplo.append([mes, ano, consumo, valor])
-        
-        df_exemplo = pd.DataFrame(dados_exemplo, columns=['mes', 'ano', 'consumo_mensal', 'valor_mensal'])
-        
-        # Definindo 'data_plotly' para garantir compatibilidade com os gráficos
-        df_exemplo['mes_num'] = df_exemplo['mes'].map({'Janeiro': 1, 'Fevereiro': 2, 'Março': 3, 'Abril': 4, 
-                                                    'Maio': 5, 'Junho': 6, 'Julho': 7, 'Agosto': 8, 
-                                                    'Setembro': 9, 'Outubro': 10, 'Novembro': 11, 'Dezembro': 12})
-        df_exemplo['data_plotly'] = pd.to_datetime(df_exemplo['ano'].astype(str) + '-' + df_exemplo['mes_num'].astype(str) + '-01')
-        df_exemplo.drop(columns='mes_num', inplace=True)
-        
-        df = df_exemplo
-        st.success("Dados de exemplo carregados com sucesso!")
-        
-        # Atualiza as variáveis globais para funcionamento do restante do código
-        df.sort_values('data_plotly', inplace=True)
-        anos = sorted(df['ano'].unique())
-        paleta = px.colors.qualitative.Set1
-        cores = {ano: paleta[i % len(paleta)] for i, ano in enumerate(anos)}
-
-    # Seção de envio de arquivo local
-    fl = st.file_uploader('📁 Use o botão abaixo para carregar um arquivo local, ou arraste-o até a área.', type=['csv','txt','xlsx'])
-    
-    if not exemplo_ativado and fl is None:
-        st.info("👆 Carregue um arquivo para visualizar seus dados.")
-        st.stop()
-    
-    # Tratamento do arquivo enviado com base no formato de documento
-    if not exemplo_ativado and fl is not None:
-        if file_extension in ['csv','txt']:
-            try:
-                if file_extension in ['csv','txt']:
-                    df = pd.read_csv(fl, sep=None, engine='python')
-                elif file_extension in ['xlsx','xls']:
-                    df = pd.read_excel(fl)
-            except Exception as e:
-                st.error(f"Erro ao carregar o arquivo: {e}")
-                st.stop()
-
-        if df.empty:
-            st.error("O arquivo carregado não contém dados. Por favor, verifique o arquivo e tente novamente.")
-            st.stop()
-        st.success(f"✅ Arquivo '{fl.name}' carregado com sucesso!")
-
-        # Tratamento da organização de datas no documento
-        if 'mes_ref' in df.columns:
-            # Confirmação de que as datas estão no formato correto
-            try:
-                df['data_plotly'] = pd.to_datetime(df['mes_ref'], format='%m/%Y')
-            except:
-                st.error("Erro ao processar 'mes_ref'.")
-                st.stop()
-        elif 'mes' in df.columns and 'ano' in df.columns:
-            meses_dict = {'Janeiro': 1, 'Fevereiro': 2, 'Março': 3, 'Abril': 4, 'Maio': 5, 'Junho': 6,
-                        'Julho': 7, 'Agosto': 8, 'Setembro': 9, 'Outubro': 10, 'Novembro': 11, 'Dezembro': 12}
-            df['mes_num'] = df['mes'].map(meses_dict)
-            df['data_plotly'] = pd.to_datetime(df['ano'].astype(str) + '-' + df['mes_num'].astype(str) + '-01')
+# Função para carregar e processar dados
+@st.cache_data
+def processar_dados(file, tipo_conta):
+    try:
+        # Determinar o tipo de arquivo e carregá-lo
+        if file.name.endswith('.csv'):
+            df = pd.read_csv(file, sep=None, engine='python')
+        elif file.name.endswith(('.xlsx', '.xls')):
+            df = pd.read_excel(file)
         else:
-            st.error("As colunas 'mes_ref' ou 'mes' e 'ano' não foram encontradas.")
-            st.stop()
+            st.error("Formato de arquivo não suportado. Por favor, use CSV ou Excel.")
+            return None
+        
+        # Verificar colunas necessárias
+        colunas_necessarias = ['mes', 'ano', 'valor', 'consumo']
+        colunas_presentes = [col for col in colunas_necessarias if col in df.columns]
+        
+        if len(colunas_presentes) < len(colunas_necessarias):
+            # Tentar mapear colunas se os nomes forem diferentes
+            mapeamento = {
+                'mes': ['mes', 'mês', 'month', 'mes_ref'],
+                'ano': ['ano', 'year', 'exercicio'],
+                'valor': ['valor', 'valor_mensal', 'value', 'custo'],
+                'consumo': ['consumo', 'consumo_mensal', 'consumption', 'gasto']
+            }
+            
+            for col_necessaria, alternativas in mapeamento.items():
+                if col_necessaria not in df.columns:
+                    for alt in alternativas:
+                        if alt in df.columns:
+                            df.rename(columns={alt: col_necessaria}, inplace=True)
+                            break
+        
+        # Verificar novamente após o mapeamento
+        colunas_faltantes = [col for col in colunas_necessarias if col not in df.columns]
+        if colunas_faltantes:
+            st.error(f"Colunas obrigatórias ausentes: {', '.join(colunas_faltantes)}")
+            return None
+        
+        # Garantir que mês e ano sejam numéricos
+        df['mes'] = pd.to_numeric(df['mes'], errors='coerce')
+        df['ano'] = pd.to_numeric(df['ano'], errors='coerce')
+        
+        # Remover linhas com valores inválidos
+        df = df.dropna(subset=['mes', 'ano', 'valor', 'consumo'])
+        
+        # Criar coluna de data para ordenação
+        df['data'] = pd.to_datetime(df['ano'].astype(int).astype(str) + '-' + 
+                                   df['mes'].astype(int).astype(str).str.zfill(2) + '-01')
+        
+        # Adicionar nome do mês para exibição
+        df['nome_mes'] = df['mes'].apply(lambda x: calendar.month_name[int(x)])
+        
+        # Adicionar coluna de mês/ano para exibição
+        df['mes_ano'] = df['data'].dt.strftime('%b/%Y')
+        
+        # Ordenar por data
+        df = df.sort_values('data')
+        
+        # Definir unidade de medida com base no tipo de conta
+        if tipo_conta == 'Conta de água(CAESB)':
+            df['unidade'] = 'm³'
+            df['tipo_medicao'] = 'água'
+        else:
+            df['unidade'] = 'kWh'
+            df['tipo_medicao'] = 'energia'
+        
+        return df
+    
+    except Exception as e:
+        st.error(f"Erro ao processar o arquivo: {e}")
+        return None
 
-        # Organização do DataFrame de datas
-        df.sort_values('data_plotly', inplace=True)
-        anos = sorted(df['ano'].unique())
+# Função para gerar dados de exemplo
+def gerar_dados_exemplo(tipo_conta):
+    # Determinar unidade e tipo de medição
+    if tipo_conta == 'Conta de água(CAESB)':
+        unidade = 'm³'
+        tipo_medicao = 'água'
+        min_consumo, max_consumo = 10, 50
+        min_valor, max_valor = 50, 300
+    else:
+        unidade = 'kWh'
+        tipo_medicao = 'energia'
+        min_consumo, max_consumo = 150, 550
+        min_valor, max_valor = 100, 500
+    
+    # Gerar dados aleatórios para 2-3 anos
+    anos = sorted(np.random.choice(range(2020, 2024), size=np.random.randint(2, 4), replace=False))
+    
+    dados = []
+    for ano in anos:
+        for mes in range(1, 13):
+            # Simular sazonalidade
+            fator_sazonal = 1 + 0.3 * np.sin((mes - 1) * np.pi / 6)
+            
+            # Gerar consumo com tendência crescente leve e sazonalidade
+            base_consumo = np.random.randint(min_consumo, max_consumo)
+            consumo = int(base_consumo * fator_sazonal * (1 + 0.05 * (ano - anos[0])))
+            
+            # Valor com alguma correlação ao consumo, mas não perfeita
+            valor = round(consumo * np.random.uniform(1.5, 2.5) + np.random.randint(-20, 20), 2)
+            
+            dados.append([mes, ano, valor, consumo, unidade, tipo_medicao])
+    
+    # Criar DataFrame
+    df = pd.DataFrame(dados, columns=['mes', 'ano', 'valor', 'consumo', 'unidade', 'tipo_medicao'])
+    
+    # Adicionar colunas de data e nome do mês
+    df['data'] = pd.to_datetime(df['ano'].astype(str) + '-' + df['mes'].astype(str).str.zfill(2) + '-01')
+    df['nome_mes'] = df['mes'].apply(lambda x: calendar.month_name[int(x)])
+    df['mes_ano'] = df['data'].dt.strftime('%b/%Y')
+    
+    # Ordenar por data
+    df = df.sort_values('data')
+    
+    return df
 
-        # Criação de paleta de cores unificada para todos os gráficos
-        paleta = px.colors.qualitative.Set1
-        cores = {ano: paleta[i % len(paleta)] for i, ano in enumerate(anos)}
-
-# 2. Seção de Visualização de Linha do Tempo (todos os dados do DF original, com scroller horizontal para visualização seletiva)
-with tab2:
-    def grafico_timeline():
-        fig = go.Figure()
-        anos = sorted(df['ano'].unique())
-        for i, ano in enumerate(anos):
-            df_ano = df[df['ano'] == ano]
-            if i > 0:
-                prev = df[df['ano'] == anos[i-1]].iloc[-1]
-                df_con = pd.DataFrame([prev, df_ano.iloc[0]])
-                fig.add_trace(go.Scatter(
-                    x=df_con['data_plotly'], y=df_con['consumo_mensal'], mode='lines',
-                    line=dict(width=2, color='gray', dash='dot'), showlegend=False, hoverinfo='skip'
-                ))
-            fig.add_trace(go.Scatter(
-                x=df_ano['data_plotly'], y=df_ano['consumo_mensal'],
-                mode='lines+markers',
-                line=dict(width=3, color=cores[ano]),
-                marker=dict(size=8, color=cores[ano]),
-                name=f'Ano {ano}',
-                hovertemplate='<b>Mês:</b> %{x|%b/%Y}<br><b>Consumo:</b> %{y}<extra></extra>'
-            ))
-        fig.update_layout(
-            title= f"Evolução do Consumo de {medicao} ao Longo do Tempo",
-            height=500,
-            hovermode="x unified",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            xaxis=dict(
-                rangeslider=dict(visible=True),
-                type="date", tickformat="%b/%Y",
-                rangeselector=dict(
-                    buttons=list([
-                        dict(count=3, label="3m", step="month", stepmode="backward"),
-                        dict(count=6, label="6m", step="month", stepmode="backward"),
-                        dict(count=1, label="1a", step="year", stepmode="backward"),
-                        dict(step="all", label="Tudo")
-                    ])
-                )
+# Função para criar gráfico de linha do tempo
+def criar_grafico_timeline(df, y_column, title, y_label, cores_por_ano):
+    fig = px.line(
+        df, 
+        x='data', 
+        y=y_column,
+        color='ano',
+        title=title,
+        labels={y_column: y_label, 'data': 'Data', 'ano': 'Ano'},
+        markers=True,
+        color_discrete_map=cores_por_ano 
+    )
+    
+    fig.update_layout(
+        height=500,
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        xaxis=dict(
+            rangeslider=dict(visible=True),
+            type="date", 
+            tickformat="%b/%Y",
+            tickangle=45,
+            rangeselector=dict(
+                buttons=list([
+                    dict(count=3, label="3m", step="month", stepmode="backward"),
+                    dict(count=6, label="6m", step="month", stepmode="backward"),
+                    dict(count=1, label="1a", step="year", stepmode="backward"),
+                    dict(step="all", label="Tudo")
+                ])
             )
         )
-        return fig
-    
-    # Plot do gráfico de linha do tempo, scroller horizontal e legendas
-    st.header("Linha do Tempo Geral")
-    st.plotly_chart(grafico_timeline(), use_container_width=True)
-    st.caption("Use o gráfico secundário como rolador horizontal para visualizar a linha do tempo.")
-
-# 3. Seção de Análise dos Dados por Intervalo de Tempo (gráficos de consumo e custo, exibição dos dados filtrados no intervalo, como somatório do valor, consumo e média de gasto)
-with tab3:
-    st.header("Análise por Intervalo de Tempo")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        ano_inicio = st.selectbox('Ano Inicial', anos, key='ano_inicio')
-        meses_do_ano_inicio = df[df['ano'] == ano_inicio]['mes'].unique()
-        meses_dict = {'Janeiro': 1, 'Fevereiro': 2, 'Março': 3, 'Abril': 4, 'Maio': 5, 'Junho': 6,
-                    'Julho': 7, 'Agosto': 8, 'Setembro': 9, 'Outubro': 10, 'Novembro': 11, 'Dezembro': 12}
-        meses_do_ano_inicio = sorted(meses_do_ano_inicio, key=lambda x: meses_dict[x])
-        mes_inicio = st.selectbox('Mês Inicial', meses_do_ano_inicio, key='mes_inicio')
-        mes_inicio_num = meses_dict[mes_inicio]
-
-    with col2:
-        ano_fim = st.selectbox('Ano Final', anos, index=len(anos)-1, key='ano_fim')
-        meses_do_ano_fim = df[df['ano'] == ano_fim]['mes'].unique()
-        meses_do_ano_fim = sorted(meses_do_ano_fim, key=lambda x: meses_dict[x])
-        mes_fim = st.selectbox('Mês Final', meses_do_ano_fim, index=len(meses_do_ano_fim)-1, key='mes_fim')
-        mes_fim_num = meses_dict[mes_fim]
-
-    # Criação do DataFrame filtrado pelo intervalo de tempo selecionado com botões interativos
-    data_inicio = pd.Timestamp(year=ano_inicio, month=mes_inicio_num, day=1)
-    data_fim = pd.Timestamp(year=ano_fim, month=mes_fim_num, day=1) + pd.offsets.MonthEnd(0)
-    df_filtrado = df[(df['data_plotly'] >= data_inicio) & (df['data_plotly'] <= data_fim)]
-    df_filtrado['ano_str'] = df_filtrado['ano'].astype(str)
-    cores_str = {str(ano): cor for ano, cor in cores.items()}
-
-    if not df_filtrado.empty:
-        st.subheader(f"Dados filtrados: {mes_inicio}/{ano_inicio} até {mes_fim}/{ano_fim}")
-        st.dataframe(df_filtrado[['mes', 'ano', 'consumo_mensal', 'valor_mensal']] if 'mes_ref' not in df_filtrado.columns else df_filtrado[['mes_ref', 'consumo_mensal', 'valor_mensal']])
-        valor_intervalo = str(prettify(f"{df_filtrado['valor_mensal'].sum():.2f}",'.')).replace('.',',')
-        valor_intervalo = valor_intervalo.replace(',','.',valor_intervalo.count(',')-1)
-        media_intervalo = str(f"{df_filtrado['consumo_mensal'].mean():.2f}").replace('.',',')
-        colm1, colm2, colm3 = st.columns(3)
-        colm1.metric(f"Total de Consumo ({metrica})", f"{prettify(df_filtrado['consumo_mensal'].sum(),'.')}")
-        colm2.metric("Valor Total (R$)", f"R$ {valor_intervalo}")    
-        colm3.metric(f"Média Mensal ({metrica})", f"{media_intervalo}")
-
-        eixo_x = 'data_plotly'
-        if 'mes_ref' in df_filtrado.columns:
-            eixo_x = 'mes_ref'
-
-        st.plotly_chart(
-            px.bar(
-                df_filtrado,
-                x=eixo_x,
-                y='consumo_mensal',
-                title=f"Consumo Mensal de {medicao} ({metrica})",
-                labels={'consumo_mensal': f'Consumo ({metrica})', eixo_x: 'Mês/Ano'},
-                color='ano_str',
-                color_discrete_map=cores_str,
-                text_auto=True
-            ).update_layout(legend_title_text='Ano', height=400, legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1)),
-            use_container_width=True
-        )
-        
-        st.plotly_chart(
-            px.line(
-                df_filtrado,
-                x=eixo_x,
-                y='valor_mensal',
-                title='Valor Mensal da Fatura (R$)',
-                labels={'valor_mensal': 'Valor (R$)', eixo_x: 'Mês/Ano'},
-                color='ano_str',
-                markers=True,
-                color_discrete_map=cores_str
-            ).update_layout(legend_title_text='Ano', height=400, legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1)),
-            use_container_width=True
-        )
-
-    else:
-        st.warning("Nenhum dado encontrado para o período selecionado. Por favor, ajuste os filtros.")
-
-with tab4:
-    st.header("Comparativo Ano a Ano")
-
-    anos_para_comparar = st.multiselect(
-        "Selecione um ou mais anos para comparação:",
-        anos,
-        default=anos if len(anos) <= 3 else anos[-2:]
     )
-    if len(anos_para_comparar) < 2:
-        st.info("Selecione pelo menos dois anos para visualização comparativa.")
-    else:
-        df_comp = df[df['ano'].isin(anos_para_comparar)].copy()
     
-        if 'mes_num' not in df_comp.columns:
-            if 'mes' in df_comp.columns and isinstance(df_comp['mes'].iloc[0], str):
-                df_comp['mes_num'] = df_comp['mes'].map(meses_dict)
+    return fig
+
+# Função para criar gráfico de barras
+def criar_grafico_barras(df, y_column, title, y_label, cores_por_ano):
+    # Converter ano para string para compatibilidade com o color_discrete_map
+    df = df.copy()
+    df['ano_str']=df['ano'].astype(str)
+
+    # Criar mapa de cores com chaves em string
+    cores_str = {str(ano):cor for ano,cor in cores_por_ano.items()}
+
+    fig = px.bar(
+        df, 
+        x='mes_ano', 
+        y=y_column,
+        color='ano_str', # Usar versão string do ano
+        title=title,
+        labels={y_column: y_label, 'mes_ano': 'Mês/Ano', 'ano_str': 'Ano'},
+        text_auto=True,
+        color_discrete_map=cores_str # Usar o mapa de cores por ano
+    )
+    
+    fig.update_layout(
+        height=400,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+
+    return fig
+
+# Função para criar gráfico comparativo
+def criar_grafico_comparativo(df, anos_selecionados, y_column, title, y_label, cores_por_ano):
+    df_filtrado = df[df['ano'].isin(anos_selecionados)].copy()
+    
+    fig = go.Figure()
+    
+    for ano in sorted(anos_selecionados):
+        df_ano = df_filtrado[df_filtrado['ano'] == ano]
+        
+        # Ordenar por mês
+        df_ano = df_ano.sort_values('mes')
+        
+        fig.add_trace(go.Scatter(
+            x=df_ano['mes'],
+            y=df_ano[y_column],
+            mode='lines+markers',
+            name=f"Ano {ano}",
+            line=dict(width=3, color=cores_por_ano[ano]),
+            marker=dict(size=8, color=cores_por_ano[ano]),
+            hovertemplate=f'<b>Mês:</b> %{{x}}<br><b>{y_label}:</b> %{{y}}<extra></extra>'
+        ))
+    
+    fig.update_layout(
+        title=title,
+        xaxis=dict(
+            tickmode='array',
+            tickvals=list(range(1, 13)),
+            ticktext=[calendar.month_name[i] for i in range(1, 13)],
+            title='Mês'
+        ),
+        yaxis_title=y_label,
+        height=500,
+        legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
+        hovermode='x'
+    )
+
+    return fig
+
+# Função para formatar valores monetários
+def formatar_valor(valor):
+    return f"R$ {valor:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+
+# Interface principal
+def main():
+    st.title("📊 Análise de Faturas de Água e Energia")
+    
+    # Criação das abas
+    tab1, tab2, tab3, tab4 = st.tabs(['📋 Introdução', '📊 Visão Geral', '🔍 Análise por Período', '🔄 Comparações'])
+    
+    # Aba 1: Introdução
+    with tab1:
+        st.header("Bem-vindo ao Dashboard de Análise de Faturas")
+        
+        st.markdown("""
+        Este aplicativo permite analisar e visualizar seus dados de faturas de água ou energia, 
+        ajudando você a entender melhor seus padrões de consumo e gastos ao longo do tempo.
+        
+        ### Como usar:
+        1. Selecione o tipo de fatura (água ou energia)
+        2. Faça upload do seu arquivo de dados ou use dados de exemplo
+        3. Navegue pelas abas para visualizar diferentes análises
+        """)
+        
+        # Seleção do tipo de conta
+        select_conta = st.selectbox(
+            "Qual tipo de fatura será analisada?",
+            ('Conta de água(CAESB)', 'Conta de energia(CEB)'),
+            index=None,
+            placeholder="Selecione o tipo de conta...",
+        )
+        
+        if select_conta is None:
+            st.info('👆 Escolha um tipo de conta para prosseguir.')
+            st.stop()
+        
+        st.write(f'Você está analisando: {select_conta}')
+        
+        # Opções para carregar dados
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            exemplo_ativado = st.button("📊 Carregar dados de exemplo")
+        
+        with col2:
+                        uploaded_file = st.file_uploader("📁 Carregar arquivo (CSV ou Excel)", type=['csv', 'xlsx', 'xls'])
+        
+        st.markdown("""
+        ### Estrutura esperada do arquivo:
+        - **mes**: número do mês (1-12)
+        - **ano**: ano de referência 
+        - **valor**: valor da fatura (em R$)
+        - **consumo**: consumo medido (em kWh ou m³)
+        """)
+        
+        # Processamento dos dados
+        if exemplo_ativado:
+            df = gerar_dados_exemplo(select_conta)
+            st.success("✅ Dados de exemplo carregados com sucesso!")
+        elif uploaded_file is not None:
+            df = processar_dados(uploaded_file, select_conta)
+            if df is not None:
+                st.success(f"✅ Arquivo '{uploaded_file.name}' carregado com sucesso!")
+        else:
+            st.info('👆 Carregue um arquivo ou use dados de exemplo para começar a análise.')
+            st.stop()
+        
+        # Armazenar dados na sessão
+        if df is not None:
+            st.session_state['df'] = df
+            st.session_state['tipo_conta'] = select_conta
+            
+            # Exibir amostra dos dados
+            with st.expander("Visualizar dados carregados"):
+                st.dataframe(df[['mes', 'ano', 'nome_mes', 'valor', 'consumo']])
+        else:
+            st.stop()
+    
+    # Verificar se os dados foram carregados
+    if 'df' not in st.session_state:
+        return
+    
+    df = st.session_state['df']
+    tipo_conta = st.session_state['tipo_conta']
+    
+    # Extrair metadados
+    unidade = df['unidade'].iloc[0]
+    tipo_medicao = df['tipo_medicao'].iloc[0]
+    anos = sorted(df['ano'].unique())
+    cores_por_ano = gerar_cores_por_ano(anos)
+    
+    # Aba 2: Visão Geral
+    with tab2:
+        st.header("Visão Geral dos Dados")
+        
+        # Estatísticas gerais
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric("Total de registros", len(df))
+            st.metric("Período analisado", f"{df['mes_ano'].iloc[0]} a {df['mes_ano'].iloc[-1]}")
+            st.metric(f"Total consumido ({unidade})", f"{df['consumo'].sum():,.1f}".replace(',', '.'))
+        
+        with col2:
+            st.metric("Valor total", formatar_valor(df['valor'].sum()))
+            st.metric(f"Consumo médio mensal ({unidade})", f"{df['consumo'].mean():,.1f}".replace(',', '.'))
+            st.metric("Valor médio mensal", formatar_valor(df['valor'].mean()))
+        
+        # Slider para selecionar intervalo de datas
+        min_date = df['data'].min().date()
+        max_date = df['data'].max().date()
+        
+        st.subheader("Filtrar período na linha do tempo")
+        date_range = st.slider(
+            "Selecione o período a visualizar:",
+            min_value=min_date,
+            max_value=max_date,
+            value=(min_date, max_date),
+            format="MM/YYYY"
+        )
+        
+        # Filtrar dados pelo intervalo selecionado
+        filtered_df = df[(df['data'].dt.date >= date_range[0]) & (df['data'].dt.date <= date_range[1])]
+        
+        if not filtered_df.empty:
+            # Gráficos de linha do tempo
+            st.subheader(f"Evolução do Consumo de {tipo_medicao.capitalize()} ao Longo do Tempo")
+            consumo_fig = criar_grafico_timeline(
+                filtered_df, 
+                'consumo', 
+                f"Consumo de {tipo_medicao.capitalize()} ({unidade})", 
+                f"Consumo ({unidade})",
+                cores_por_ano
+            )
+            st.plotly_chart(consumo_fig, use_container_width=True)
+            
+            st.subheader("Evolução do Valor das Faturas ao Longo do Tempo")
+            valor_fig = criar_grafico_timeline(
+                filtered_df, 
+                'valor', 
+                "Valor das Faturas (R$)", 
+                "Valor (R$)",
+                cores_por_ano
+            )
+            st.plotly_chart(valor_fig, use_container_width=True)
+            st.caption("Use o controle deslizante abaixo do gráfico para zoom ou os botões para selecionar períodos específicos.")
+        else:
+            st.warning("Nenhum dado encontrado para o período selecionado.")
+    
+    # Aba 3: Análise por Período
+    with tab3:
+        st.header("Análise por Período Específico")
+        
+        # Seletores de período
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("Período Inicial")
+            ano_inicial = st.selectbox("Ano inicial", anos, index=0, key="ano_inicial")
+            
+            meses_disponiveis_inicial = sorted(df[df['ano'] == ano_inicial]['mes'].unique())
+            mes_inicial = st.selectbox(
+                "Mês inicial", 
+                meses_disponiveis_inicial,
+                format_func=lambda x: calendar.month_name[int(x)],
+                index=0,
+                key="mes_inicial"
+            )
+        
+        with col2:
+            st.subheader("Período Final")
+            ano_final = st.selectbox("Ano final", anos, index=len(anos)-1, key="ano_final")
+            
+            meses_disponiveis_final = sorted(df[df['ano'] == ano_final]['mes'].unique())
+            mes_final = st.selectbox(
+                "Mês final", 
+                meses_disponiveis_final,
+                format_func=lambda x: calendar.month_name[int(x)],
+                index=len(meses_disponiveis_final)-1,
+                key="mes_final"
+            )
+        
+        # Converter para datas para comparação
+        data_inicial = pd.Timestamp(year=ano_inicial, month=mes_inicial, day=1)
+        data_final = pd.Timestamp(year=ano_final, month=mes_final, day=1)
+        
+        if data_inicial > data_final:
+            st.error("O período inicial não pode ser posterior ao período final.")
+        else:
+            # Filtrar dados
+            periodo_df = df[(df['data'] >= data_inicial) & (df['data'] <= data_final)]
+            
+            if len(periodo_df) == 0:
+                st.warning("Não há dados disponíveis para o período selecionado.")
             else:
-                df_comp['mes_num'] = df_comp['mes']
+                st.success(f"Analisando {len(periodo_df)} meses entre {calendar.month_name[mes_inicial]}/{ano_inicial} e {calendar.month_name[mes_final]}/{ano_final}")
+                
+                # Métricas do período
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.metric(f"Total consumido ({unidade})", f"{periodo_df['consumo'].sum():,.1f}".replace(',', '.'))
+                    
+                with col2:
+                    st.metric("Valor total", formatar_valor(periodo_df['valor'].sum()))
+                    
+                with col3:
+                    st.metric(f"Média mensal ({unidade})", f"{periodo_df['consumo'].mean():,.1f}".replace(',', '.'))
+                
+                # Gráficos do período
+                st.subheader(f"Consumo de {tipo_medicao.capitalize()} no Período Selecionado")
+                consumo_periodo_fig = criar_grafico_barras(
+                    periodo_df,
+                    'consumo',
+                    f"Consumo de {tipo_medicao.capitalize()} ({unidade})",
+                    f"Consumo ({unidade})",
+                    cores_por_ano
+                )
+                st.plotly_chart(consumo_periodo_fig, use_container_width=True)
+                
+                st.subheader("Valor das Faturas no Período Selecionado")
+                valor_periodo_fig = criar_grafico_barras(
+                    periodo_df,
+                    'valor',
+                    "Valor das Faturas (R$)",
+                    "Valor (R$)",
+                    cores_por_ano
+                )
+                st.plotly_chart(valor_periodo_fig, use_container_width=True)
+                
+                # Dados detalhados
+                with st.expander("Visualizar dados detalhados do período"):
+                    st.dataframe(periodo_df[['mes_ano', 'nome_mes', 'ano', 'consumo', 'valor']])
     
-        df_comp.sort_values(['ano', 'mes_num'], inplace=True)
-    
-        fig_comp1 = go.Figure()
-        for ano in anos_para_comparar:
-            df_ano = df_comp[df_comp['ano'] == ano]
-            fig_comp1.add_trace(go.Scatter(
-                x=df_ano['mes_num'],
-                y=df_ano['consumo_mensal'],
-                mode='lines+markers',
-                name=f"Ano {ano}",
-                line=dict(width=3, color=cores[ano]),
-                marker=dict(size=8, color=cores[ano]),
-                hovertemplate='<b>Mês:</b> %{x}<br><b>Consumo:</b> %{y} m³<extra></extra>'
-            ))
-        fig_comp1.update_layout(
-            xaxis = dict(
-                tickmode='array',
-                tickvals=list(meses_dict.values()),
-                ticktext=list(meses_dict.keys()),
-                title='Mês'
-            ),
-            yaxis_title='Consumo(m³)',
-            title="Comparativo de Consumo Mensal: Anos Selecionados",
-            height=500,
-            legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
-            hovermode='x'
+    # Aba 4: Comparações
+    with tab4:
+        st.header("Comparações de Consumo e Valores")
+        
+        # Opções de visualização
+        visualization_type = st.radio(
+            "Escolha o tipo de visualização:",
+            ["Comparação de Consumo por Ano", "Comparação de Valores por Ano", "Consumo x Valor"],
+            horizontal=True
         )
         
-        fig_comp2 = go.Figure()
-        for ano in anos_para_comparar:
-            df_ano = df_comp[df_comp['ano'] == ano]
-            fig_comp2.add_trace(go.Scatter(
-                x=df_ano['mes_num'],
-                y=df_ano['valor_mensal'],
-                mode='lines+markers',
-                name=f"Ano {ano}",
-                line=dict(width=3, color=cores[ano]),
-                marker=dict(size=8, color=cores[ano]),
-                hovertemplate='<b>Mês:</b> %{x}<br><b>Valor:</b> R$ %{y}<extra></extra>' 
-            ))
-        fig_comp2.update_layout(
-            xaxis = dict(
-                tickmode='array',
-                tickvals=list(meses_dict.values()),
-                ticktext=list(meses_dict.keys()),
-                title='Mês'
-            ),
-            yaxis_title='Valor(R$)',
-            title="Comparativo de Valor Mensal: Anos Selecionados",
-            height=500,
-            legend=dict(orientation='h',yanchor='bottom',y=1.02,xanchor='right',x=1),
-            hovermode='x'
-        )
+        if visualization_type in ["Comparação de Consumo por Ano", "Comparação de Valores por Ano"]:
+            # Seleção de anos para comparar
+            anos_para_comparar = st.multiselect(
+                "Selecione anos para comparação:",
+                anos,
+                default=anos[-2:] if len(anos) >= 2 else anos
+            )
+            
+            if len(anos_para_comparar) < 2:
+                st.info("Selecione pelo menos dois anos para visualização comparativa.")
+            else:
+                if visualization_type == "Comparação de Consumo por Ano":
+                    st.subheader(f"Comparativo de Consumo de {tipo_medicao.capitalize()} ({unidade})")
+                    fig_comp = criar_grafico_comparativo(
+                        df,
+                        anos_para_comparar,
+                        'consumo',
+                        f"Comparativo de Consumo de {tipo_medicao.capitalize()} Mensal ({unidade})",
+                        f"Consumo ({unidade})",
+                        cores_por_ano
+                    )
+                    st.plotly_chart(fig_comp, use_container_width=True)
+                else:
+                    st.subheader("Comparativo de Valores das Faturas (R$)")
+                    fig_comp = criar_grafico_comparativo(
+                        df,
+                        anos_para_comparar,
+                        'valor',
+                        "Comparativo de Valor das Faturas Mensal (R$)",
+                        "Valor (R$)",
+                        cores_por_ano
+                    )
+                    st.plotly_chart(fig_comp, use_container_width=True)
+                
+                # Tabela comparativa por mês
+                with st.expander("Visualizar tabela comparativa"):
+                    comp_data = []
+                    for mes in range(1, 13):
+                        row = {'Mês': calendar.month_name[mes]}
+                        for ano in anos_para_comparar:
+                            filtered = df[(df['ano'] == ano) & (df['mes'] == mes)]
+                            if visualization_type == "Comparação de Consumo por Ano":
+                                if not filtered.empty:
+                                    row[f'Consumo {ano}'] = f"{filtered['consumo'].values[0]:,.1f} {unidade}".replace(',', '.')
+                                else:
+                                    row[f'Consumo {ano}'] = "N/A"
+                            else:
+                                if not filtered.empty:
+                                    row[f'Valor {ano}'] = formatar_valor(filtered['valor'].values[0])
+                                else:
+                                    row[f'Valor {ano}'] = "N/A"
+                        comp_data.append(row)
+                    
+                    comp_df = pd.DataFrame(comp_data)
+                    st.dataframe(comp_df, use_container_width=True)
         
-        st.plotly_chart(fig_comp1, use_container_width=True)
-        st.plotly_chart(fig_comp2, use_container_width=True)
+        else:  # Consumo x Valor
+            st.subheader("Relação entre Consumo e Valor")
+            
+            # Criar gráfico de dispersão
+            df_scatter = df.copy()
+            df_scatter['ano_str'] = df_scatter['ano'].astype(str)
+            cores_str = {str(ano): cor for ano, cor in cores_por_ano.items()}
+
+            scatter_fig = px.scatter(
+                df_scatter,
+                x='consumo',
+                y='valor',
+                color='ano_str',
+                title=f"Relação entre Consumo e Valor das Faturas",
+                labels={'consumo': f'Consumo({unidade})','valor':'Valor(R$)','ano_str':'Ano'},
+                trendline='ols',
+                hover_data=['mes_ano'],
+                color_discrete_map=cores_str
+            )
+            scatter_fig.update_layout(
+                height=600,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            
+            st.plotly_chart(scatter_fig, use_container_width=True)
+            
+            # Calcular e exibir correlação
+            correlacao = df['consumo'].corr(df['valor'])
+            st.metric("Correlação entre Consumo e Valor", f"{correlacao:.2f}")
+            
+            if correlacao > 0.7:
+                st.success("Há uma forte correlação positiva entre consumo e valor. Isso indica que os valores das faturas são fortemente influenciados pelo seu consumo.")
+            elif correlacao > 0.4:
+                st.info("Há uma correlação moderada entre consumo e valor. Outros fatores além do consumo também influenciam significativamente o valor da fatura.")
+            else:
+                st.warning("A correlação entre consumo e valor é fraca. O valor da sua fatura parece ser mais influenciado por outros fatores além do consumo.")
+            
+            # Eficiência econômica (custo por unidade)
+            st.subheader("Análise de Eficiência (Custo por Unidade)")
+            
+            df_eficiencia = df.copy()
+            df_eficiencia['custo_por_unidade'] = df_eficiencia['valor'] / df_eficiencia['consumo']
+            
+            df_eficiencia['ano_str'] = df_eficiencia['ano'].astype(str)
+            cores_str = {str(ano): cor for ano, cor in cores_por_ano.items()}
+
+            efic_fig = px.line(
+                df_eficiencia,
+                x='mes_ano',
+                y='custo_por_unidade',
+                color='ano_str',
+                title=f"Custo por Unidade Consumida (R$/{unidade})",
+                labels={'mes_ano': 'Período', 'custo_por_unidade': f'R$/{unidade}','ano_str':'Ano'},
+                markers=True,
+                color_discrete_sequence=cores_str
+            )
+            
+            efic_fig.update_layout(
+                height=400,
+                hovermode="x unified"
+            )
+            
+            st.plotly_chart(efic_fig, use_container_width=True)
+            
+            # Estatísticas de eficiência
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.metric("Custo médio por unidade", formatar_valor(df_eficiencia['custo_por_unidade'].mean()))
+                
+            with col2:
+                st.metric("Menor custo por unidade", formatar_valor(df_eficiencia['custo_por_unidade'].min()))
+
+# Executar o aplicativo
+if __name__ == "__main__":
+    main()
