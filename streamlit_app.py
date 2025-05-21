@@ -68,77 +68,6 @@ def processar_dados(file, tipo_conta):
         # Criar coluna de data para ordenação
         df['data'] = pd.to_datetime(df['ano'].astype(int).astype(str) + '-' + 
                                    df['mes'].astype(int).astype(str).str.zfill(2) + '-01')
-import numpy as np
-import calendar
-from datetime import datetime
-import io
-
-# Função para gerar dicionário de cores por ano
-def gerar_cores_por_ano(anos):
-    """
-    Atribui uma cor consistente para cada ano usando uma paleta qualitativa
-    """
-    paleta = px.colors.qualitative.Set1
-    return {ano: paleta[i % len(paleta)] for i, ano in enumerate(sorted(anos))}
-
-# Configuração da página
-st.set_page_config(page_title='Dashboard de Análise de Faturas', page_icon='📊', layout='wide')
-
-# Definindo cores consistentes para todo o aplicativo
-COLORS = {
-    'valor': '#1f77b4',  # Azul para valores monetários
-    'consumo': '#ff7f0e',  # Laranja para consumo
-}
-
-# Função para carregar e processar dados
-@st.cache_data
-def processar_dados(file, tipo_conta):
-    try:
-        # Determinar o tipo de arquivo e carregá-lo
-        if file.name.endswith('.csv'):
-            df = pd.read_csv(file, sep=None, engine='python')
-        elif file.name.endswith(('.xlsx', '.xls')):
-            df = pd.read_excel(file)
-        else:
-            st.error("Formato de arquivo não suportado. Por favor, use CSV ou Excel.")
-            return None
-        
-        # Verificar colunas necessárias
-        colunas_necessarias = ['mes', 'ano', 'valor', 'consumo']
-        colunas_presentes = [col for col in colunas_necessarias if col in df.columns]
-        
-        if len(colunas_presentes) < len(colunas_necessarias):
-            # Tentar mapear colunas se os nomes forem diferentes
-            mapeamento = {
-                'mes': ['mes', 'mês', 'month', 'mes_ref'],
-                'ano': ['ano', 'year', 'exercicio'],
-                'valor': ['valor', 'valor_mensal', 'value', 'custo'],
-                'consumo': ['consumo', 'consumo_mensal', 'consumption', 'gasto']
-            }
-            
-            for col_necessaria, alternativas in mapeamento.items():
-                if col_necessaria not in df.columns:
-                    for alt in alternativas:
-                        if alt in df.columns:
-                            df.rename(columns={alt: col_necessaria}, inplace=True)
-                            break
-        
-        # Verificar novamente após o mapeamento
-        colunas_faltantes = [col for col in colunas_necessarias if col not in df.columns]
-        if colunas_faltantes:
-            st.error(f"Colunas obrigatórias ausentes: {', '.join(colunas_faltantes)}")
-            return None
-        
-        # Garantir que mês e ano sejam numéricos
-        df['mes'] = pd.to_numeric(df['mes'], errors='coerce')
-        df['ano'] = pd.to_numeric(df['ano'], errors='coerce')
-        
-        # Remover linhas com valores inválidos
-        df = df.dropna(subset=['mes', 'ano', 'valor', 'consumo'])
-        
-        # Criar coluna de data para ordenação
-        df['data'] = pd.to_datetime(df['ano'].astype(int).astype(str) + '-' + 
-                                   df['mes'].astype(int).astype(str).str.zfill(2) + '-01')
         
         # Adicionar nome do mês para exibição
         df['nome_mes'] = df['mes'].apply(lambda x: calendar.month_name[int(x)])
@@ -645,47 +574,6 @@ def main():
             elif correlacao > 0.4:
                 st.info("Há uma correlação moderada entre consumo e valor. Outros fatores além do consumo também influenciam significativamente o valor da fatura.")
             else:
-                st.warning("A correlação entre consumo e valor é fraca. O valor da sua fatura parece ser mais influenciado por outros fatores além do consumo.")
-            
-            # Eficiência econômica (custo por unidade)
-            st.subheader("Análise de Eficiência (Custo por Unidade)")
-            
-            df_eficiencia = df.copy()
-            df_eficiencia['custo_por_unidade'] = df_eficiencia['valor'] / df_eficiencia['consumo']
-            
-            df_eficiencia['ano_str'] = df_eficiencia['ano'].astype(str)
-            cores_str = {str(ano): cor for ano, cor in cores_por_ano.items()}
-
-            efic_fig = px.line(
-                df_eficiencia,
-                x='mes_ano',
-                y='custo_por_unidade',
-                color='ano_str',
-                title=f"Custo por Unidade Consumida (R$/{unidade})",
-                labels={'mes_ano': 'Período', 'custo_por_unidade': f'R$/{unidade}','ano_str':'Ano'},
-                markers=True,
-                color_discrete_sequence=cores_str
-            )
-            
-            efic_fig.update_layout(
-                height=400,
-                hovermode="x unified"
-            )
-            
-            st.plotly_chart(efic_fig, use_container_width=True)
-            
-            # Estatísticas de eficiência
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.metric("Custo médio por unidade", formatar_valor(df_eficiencia['custo_por_unidade'].mean()))
-                
-            with col2:
-                st.metric("Menor custo por unidade", formatar_valor(df_eficiencia['custo_por_unidade'].min()))
-
-# Executar o aplicativo
-if __name__ == "__main__":
-    main()
                 st.warning("A correlação entre consumo e valor é fraca. O valor da sua fatura parece ser mais influenciado por outros fatores além do consumo.")
             
             # Eficiência econômica (custo por unidade)
