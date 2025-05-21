@@ -18,11 +18,6 @@ def gerar_cores_por_ano(anos):
 # Configuração da página
 st.set_page_config(page_title='Dashboard de Análise de Faturas', page_icon='📊', layout='wide')
 
-# Definindo cores consistentes para todo o aplicativo
-COLORS = {
-    'valor': '#1f77b4',  # Azul para valores monetários
-    'consumo': '#ff7f0e',  # Laranja para consumo
-}
 
 # Função para carregar e processar dados
 @st.cache_data
