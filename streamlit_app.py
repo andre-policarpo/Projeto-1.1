@@ -5,7 +5,18 @@ import plotly.express as px
 import numpy as np
 import calendar
 from datetime import datetime
+from millify import prettify
 import io
+
+MESES_PT = {1: 'Janeiro', 2: 'Fevereiro', 3: 'Março', 4: 'Abril',
+            5: 'Maio', 6: 'Junho', 7: 'Julho', 8: 'Agosto',
+            9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'
+}
+
+MESES_ABREV_PT = {1: 'Jan', 2: 'Fev', 3: 'Mar', 4: 'Abr',
+            5: 'Mai', 6: 'Jun', 7: 'Jul', 8: 'Ago',
+            9: 'Set', 10: 'Out', 11: 'Nov', 12: 'Dez'
+}
 
 # Função para gerar dicionário de cores por ano
 def gerar_cores_por_ano(anos):
@@ -70,10 +81,10 @@ def processar_dados(file, tipo_conta):
                                    df['mes'].astype(int).astype(str).str.zfill(2) + '-01')
         
         # Adicionar nome do mês para exibição
-        df['nome_mes'] = df['mes'].apply(lambda x: calendar.month_name[int(x)])
+        df['nome_mes'] = df['mes'].apply(lambda x: MESES_PT[int(x)])
         
         # Adicionar coluna de mês/ano para exibição
-        df['mes_ano'] = df['data'].dt.strftime('%b/%Y')
+        df['mes_ano'] = df['data'].dt.month.apply(lambda m: MESES_ABREV_PT[m]) + '/' + df['data'].dt.year.astype(str)
         
         # Ordenar por data
         df = df.sort_values('data')
@@ -93,6 +104,7 @@ def processar_dados(file, tipo_conta):
         return None
 
 # Função para gerar dados de exemplo
+@st.cache_data
 def gerar_dados_exemplo(tipo_conta):
     # Determinar unidade e tipo de medição
     if tipo_conta == 'Conta de água(CAESB)':
@@ -129,8 +141,8 @@ def gerar_dados_exemplo(tipo_conta):
     
     # Adicionar colunas de data e nome do mês
     df['data'] = pd.to_datetime(df['ano'].astype(str) + '-' + df['mes'].astype(str).str.zfill(2) + '-01')
-    df['nome_mes'] = df['mes'].apply(lambda x: calendar.month_name[int(x)])
-    df['mes_ano'] = df['data'].dt.strftime('%b/%Y')
+    df['nome_mes'] = df['mes'].apply(lambda x: MESES_PT[int(x)])
+    df['mes_ano'] = df['data'].dt.month.apply(lambda m: MESES_ABREV_PT[m]) + '/' + df['data'].dt.year.astype(str)
     
     # Ordenar por data
     df = df.sort_values('data')
@@ -157,7 +169,9 @@ def criar_grafico_timeline(df, y_column, title, y_label, cores_por_ano):
         xaxis=dict(
             rangeslider=dict(visible=True),
             type="date", 
-            tickformat="%b/%Y",
+            tickmode="array",
+            tickvals=df['data'].tolist(), # Usar as datas exatas como valores
+            ticktext=df['mes_ano'].tolist(), # Usar os textos 'mes_ano' formatados em portugues
             tickangle=45,
             rangeselector=dict(
                 buttons=list([
@@ -226,7 +240,7 @@ def criar_grafico_comparativo(df, anos_selecionados, y_column, title, y_label, c
         xaxis=dict(
             tickmode='array',
             tickvals=list(range(1, 13)),
-            ticktext=[calendar.month_name[i] for i in range(1, 13)],
+            ticktext=[MESES_PT[i] for i in range(1, 13)],
             title='Mês'
         ),
         yaxis_title=y_label,
@@ -243,23 +257,24 @@ def formatar_valor(valor):
 
 # Interface principal
 def main():
-    st.title("📊 Análise de Faturas de Água e Energia")
+    st.title("📊 Análise de Gastos - MIDR")
     
     # Criação das abas
     tab1, tab2, tab3, tab4 = st.tabs(['📋 Introdução', '📊 Visão Geral', '🔍 Análise por Período', '🔄 Comparações'])
     
     # Aba 1: Introdução
     with tab1:
-        st.header("Bem-vindo ao Dashboard de Análise de Faturas")
+        st.header("Bem vindo ao Sistema de Análise de Faturas!")
         
         st.markdown("""
         Este aplicativo permite analisar e visualizar seus dados de faturas de água ou energia, 
         ajudando você a entender melhor seus padrões de consumo e gastos ao longo do tempo.
         
         ### Como usar:
-        1. Selecione o tipo de fatura (água ou energia)
-        2. Faça upload do seu arquivo de dados ou use dados de exemplo
-        3. Navegue pelas abas para visualizar diferentes análises
+        1. Selecione o tipo de fatura(água ou energia) com o botão abaixo;
+        2. Faça upload do seu arquivo de dados, ou use dados de exemplo;
+        3. Navegue pelas abas acima para visualizar diferentes análises;
+        4. Dúvidas sobre como manejar os gráficos? Cada página possui uma nota de rodapé detalhando seu funcionamento!             
         """)
         
         # Seleção do tipo de conta
@@ -270,7 +285,7 @@ def main():
             placeholder="Selecione o tipo de conta...",
         )
         
-        if select_conta is None:
+        if select_conta is None and not st.session_state.dados_carregados:
             st.info('👆 Escolha um tipo de conta para prosseguir.')
             st.stop()
         
@@ -283,36 +298,53 @@ def main():
             exemplo_ativado = st.button("📊 Carregar dados de exemplo")
         
         with col2:
-                        uploaded_file = st.file_uploader("📁 Carregar arquivo (CSV ou Excel)", type=['csv', 'xlsx', 'xls'])
+            uploaded_file = st.file_uploader("📁 Carregar arquivo (CSV ou Excel)", type=['csv', 'xlsx', 'xls'])
         
         st.markdown("""
         ### Estrutura esperada do arquivo:
-        - **mes**: número do mês (1-12)
-        - **ano**: ano de referência 
-        - **valor**: valor da fatura (em R$)
-        - **consumo**: consumo medido (em kWh ou m³)
+        - **Coluna 'mes'**: número correspondente ao mês (1-12)
+        - **Coluna 'ano'**: ano de referência 
+        - **Coluna 'valor'**: valor total da fatura a ser paga (é importante que o numero contenha apenas um ponto separador de valores decimais)
+        - **Coluna 'consumo'**: valor do consumo faturado
         """)
         
         # Processamento dos dados
+        if 'dados_carregados' not in st.session_state:
+            st.session_state.dados_carregados = False
+
         if exemplo_ativado:
             df = gerar_dados_exemplo(select_conta)
+            st.session_state.df = df
+            st.session_state.tipo_conta = select_conta
+            st.session_state.dados_carregados = True
+            st.session_state.fonte_dados = "exemplo"
             st.success("✅ Dados de exemplo carregados com sucesso!")
         elif uploaded_file is not None:
             df = processar_dados(uploaded_file, select_conta)
             if df is not None:
+                st.session_state.df = df
+                st.session_state.tipo_conta = select_conta
+                st.session_state.dados_carregados = True
+                st.session_state.fonte_dados = "arquivo"
                 st.success(f"✅ Arquivo '{uploaded_file.name}' carregado com sucesso!")
+            else:
+                st.error("❌ Erro ao processar o arquivo.")
+                st.stop()
+        elif st.session_state.dados_carregados:
+            # Recuperar dados da sessão
+            df = st.session_state.df
+            select_conta = st.session_state.tipo_conta
+            st.success(f"✅ Usando dados {'de exemplo' if st.session_state.fonte_dados == 'exemplo' else 'do arquivo'} carregados anteriormente.")
+
         else:
             st.info('👆 Carregue um arquivo ou use dados de exemplo para começar a análise.')
             st.stop()
         
         # Armazenar dados na sessão
         if df is not None:
-            st.session_state['df'] = df
-            st.session_state['tipo_conta'] = select_conta
-            
             # Exibir amostra dos dados
-            with st.expander("Visualizar dados carregados"):
-                st.dataframe(df[['mes', 'ano', 'nome_mes', 'valor', 'consumo']])
+            with st.expander("Visualizar dados carregados (tabela bruta)"):
+                st.dataframe(df[['nome_mes', 'ano', 'valor', 'consumo']])
         else:
             st.stop()
     
@@ -331,6 +363,13 @@ def main():
     
     # Aba 2: Visão Geral
     with tab2:
+        # Confirmação de que os dados estão carregados corretamente
+        if 'dados_carregados' not in st.session_state or not st.session_state.dados_carregados:
+            st.warning("⚠️ Nenhum dado carregado. Por favor, volte à aba 'Introdução' para carregar dados.")
+            st.stop()
+        df = st.session_state.df
+        tipo_conta = st.session_state.tipo_conta
+        
         st.header("Visão Geral dos Dados")
         
         # Estatísticas gerais
@@ -339,7 +378,7 @@ def main():
         with col1:
             st.metric("Total de registros", len(df))
             st.metric("Período analisado", f"{df['mes_ano'].iloc[0]} a {df['mes_ano'].iloc[-1]}")
-            st.metric(f"Total consumido ({unidade})", f"{df['consumo'].sum():,.1f}".replace(',', '.'))
+            st.metric(f"Total consumido ({unidade})", f"{prettify(df['consumo'].sum(),'.')}")
         
         with col2:
             st.metric("Valor total", formatar_valor(df['valor'].sum()))
@@ -373,7 +412,8 @@ def main():
                 cores_por_ano
             )
             st.plotly_chart(consumo_fig, use_container_width=True)
-            
+            st.caption("Use o controle deslizante abaixo do gráfico para zoom ou os botões para selecionar períodos específicos.")
+
             st.subheader("Evolução do Valor das Faturas ao Longo do Tempo")
             valor_fig = criar_grafico_timeline(
                 filtered_df, 
@@ -384,11 +424,27 @@ def main():
             )
             st.plotly_chart(valor_fig, use_container_width=True)
             st.caption("Use o controle deslizante abaixo do gráfico para zoom ou os botões para selecionar períodos específicos.")
+            st.markdown("""
+            #### Recursos interativos:
+
+            - **Passe o mouse** sobre qualquer ponto para ver detalhes da fatura específica
+            - **Clique e arraste** para ampliar uma área específica do gráfico
+            - **Clique duplo** para restaurar a visualização original
+            - **Clique na legenda** para mostrar/ocultar anos específicos
+
+            """)
         else:
             st.warning("Nenhum dado encontrado para o período selecionado.")
     
     # Aba 3: Análise por Período
     with tab3:
+        # Confirmação de que os dados estão carregados corretamente
+        if 'dados_carregados' not in st.session_state or not st.session_state.dados_carregados:
+            st.warning("⚠️ Nenhum dado carregado. Por favor, volte à aba 'Introdução' para carregar dados.")
+            st.stop()
+        df = st.session_state.df
+        tipo_conta = st.session_state.tipo_conta
+        
         st.header("Análise por Período Específico")
         
         # Seletores de período
@@ -402,7 +458,7 @@ def main():
             mes_inicial = st.selectbox(
                 "Mês inicial", 
                 meses_disponiveis_inicial,
-                format_func=lambda x: calendar.month_name[int(x)],
+                format_func=lambda x: MESES_PT[int(x)],
                 index=0,
                 key="mes_inicial"
             )
@@ -415,7 +471,7 @@ def main():
             mes_final = st.selectbox(
                 "Mês final", 
                 meses_disponiveis_final,
-                format_func=lambda x: calendar.month_name[int(x)],
+                format_func=lambda x: MESES_PT[int(x)],
                 index=len(meses_disponiveis_final)-1,
                 key="mes_final"
             )
@@ -433,13 +489,13 @@ def main():
             if len(periodo_df) == 0:
                 st.warning("Não há dados disponíveis para o período selecionado.")
             else:
-                st.success(f"Analisando {len(periodo_df)} meses entre {calendar.month_name[mes_inicial]}/{ano_inicial} e {calendar.month_name[mes_final]}/{ano_final}")
+                st.success(f"Analisando {len(periodo_df)} meses entre {MESES_ABREV_PT[mes_inicial]}/{ano_inicial} e {MESES_ABREV_PT[mes_final]}/{ano_final}")
                 
                 # Métricas do período
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
-                    st.metric(f"Total consumido ({unidade})", f"{periodo_df['consumo'].sum():,.1f}".replace(',', '.'))
+                    st.metric(f"Total consumido ({unidade})", f"{prettify(df['consumo'].sum(),'.')}")
                     
                 with col2:
                     st.metric("Valor total", formatar_valor(periodo_df['valor'].sum()))
@@ -467,13 +523,29 @@ def main():
                     cores_por_ano
                 )
                 st.plotly_chart(valor_periodo_fig, use_container_width=True)
-                
+                st.markdown("""
+                #### Recursos interativos:
+
+                - **Passe o mouse** sobre qualquer ponto para ver detalhes da fatura específica
+                - **Clique e arraste** para ampliar uma área específica do gráfico
+                - **Clique duplo** para restaurar a visualização original
+                - **Clique na legenda** para ocultar/mostrar anos específicos
+
+                """)
+
                 # Dados detalhados
-                with st.expander("Visualizar dados detalhados do período"):
-                    st.dataframe(periodo_df[['mes_ano', 'nome_mes', 'ano', 'consumo', 'valor']])
-    
+                with st.expander("Visualizar dados detalhados do período (tabela bruta)"):
+                    st.dataframe(periodo_df[['mes_ano','consumo', 'valor']])
+
     # Aba 4: Comparações
     with tab4:
+        # Confirmação de que os dados estão carregados corretamente
+        if 'dados_carregados' not in st.session_state or not st.session_state.dados_carregados:
+            st.warning("⚠️ Nenhum dado carregado. Por favor, volte à aba 'Introdução' para carregar dados.")
+            st.stop()
+        df = st.session_state.df
+        tipo_conta = st.session_state.tipo_conta
+
         st.header("Comparações de Consumo e Valores")
         
         # Opções de visualização
@@ -521,7 +593,7 @@ def main():
                 with st.expander("Visualizar tabela comparativa"):
                     comp_data = []
                     for mes in range(1, 13):
-                        row = {'Mês': calendar.month_name[mes]}
+                        row = {'Mês': MESES_PT[mes]}
                         for ano in anos_para_comparar:
                             filtered = df[(df['ano'] == ano) & (df['mes'] == mes)]
                             if visualization_type == "Comparação de Consumo por Ano":
@@ -576,41 +648,49 @@ def main():
             else:
                 st.warning("A correlação entre consumo e valor é fraca. O valor da sua fatura parece ser mais influenciado por outros fatores além do consumo.")
             
-            # Eficiência econômica (custo por unidade)
-            st.subheader("Análise de Eficiência (Custo por Unidade)")
-            
-            df_eficiencia = df.copy()
-            df_eficiencia['custo_por_unidade'] = df_eficiencia['valor'] / df_eficiencia['consumo']
-            
-            df_eficiencia['ano_str'] = df_eficiencia['ano'].astype(str)
-            cores_str = {str(ano): cor for ano, cor in cores_por_ano.items()}
+            st.markdown("""
+            ### Como interpretar este gráfico
 
-            efic_fig = px.line(
-                df_eficiencia,
-                x='mes_ano',
-                y='custo_por_unidade',
-                color='ano_str',
-                title=f"Custo por Unidade Consumida (R$/{unidade})",
-                labels={'mes_ano': 'Período', 'custo_por_unidade': f'R$/{unidade}','ano_str':'Ano'},
-                markers=True,
-                color_discrete_sequence=cores_str
-            )
+            Este gráfico de dispersão mostra a relação entre o consumo e o valor das faturas ao longo do tempo. Cada ponto representa uma fatura mensal, onde:
+
+            - O eixo horizontal (X) representa o consumo em unidades (kWh ou m³)
+            - O eixo vertical (Y) representa o valor pago em reais (R$)
+            - Cada cor representa um ano diferente, permitindo identificar padrões ao longo do tempo
+            - A linha de tendência (tracejada) mostra a relação geral entre consumo e valor
+
+            #### O que observar:
+
+            1. **Correlação**: O valor numérico da correlação indica a força da relação entre consumo e valor:
+            - Próximo a 1.0: forte relação (o valor aumenta proporcionalmente ao consumo)
+            - Próximo a 0.5: relação moderada (outros fatores também influenciam o valor)
+            - Próximo a 0.0: relação fraca (consumo e valor variam independentemente)
+
+            2. **Dispersão dos pontos**:
+            - Pontos agrupados próximos à linha de tendência: relação consistente
+            - Pontos muito dispersos: variabilidade nas tarifas ou presença de cobranças adicionais
+            - Pontos afastados (outliers): possíveis cobranças excepcionais ou erros de medição
+
+            3. **Agrupamentos por cor**:
+            - Pontos da mesma cor agrupados: padrão de consumo/valor consistente naquele ano
+            - Separação clara entre cores: possível mudança de tarifas entre anos
+
+            #### Recursos interativos:
+
+            - **Passe o mouse** sobre qualquer ponto para ver detalhes da fatura específica
+            - **Clique e arraste** para ampliar uma área específica do gráfico
+            - **Clique duplo** para restaurar a visualização original
+            - **Clique na legenda** para mostrar/ocultar anos específicos
+
+            Este gráfico é especialmente útil para identificar se aumentos nas faturas são proporcionais ao consumo ou se outros fatores (como reajustes tarifários) estão influenciando seus gastos.
+            """)
             
-            efic_fig.update_layout(
-                height=400,
-                hovermode="x unified"
-            )
-            
-            st.plotly_chart(efic_fig, use_container_width=True)
-            
-            # Estatísticas de eficiência
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.metric("Custo médio por unidade", formatar_valor(df_eficiencia['custo_por_unidade'].mean()))
-                
-            with col2:
-                st.metric("Menor custo por unidade", formatar_valor(df_eficiencia['custo_por_unidade'].min()))
+            st.info("""
+            **Nota sobre custo por unidade:** 
+            Uma análise de custo por unidade não está sendo mostrada porque faturas de serviços públicos 
+            geralmente incluem tarifas fixas, impostos e outros componentes que não são diretamente 
+            proporcionais ao consumo. Sem separar esses componentes, o cálculo de custo por unidade 
+            poderia levar a conclusões imprecisas.
+            """)
 
 # Executar o aplicativo
 if __name__ == "__main__":
