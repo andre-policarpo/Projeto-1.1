@@ -29,6 +29,8 @@ def gerar_cores_por_ano(anos):
 # Configuração da página
 st.set_page_config(page_title='Dashboard de Análise de Faturas', page_icon='📊', layout='wide')
 
+if 'dados_carregados' not in st.session_state:
+    st.session_state.dados_carregados = False
 
 # Função para carregar e processar dados
 @st.cache_data
@@ -285,7 +287,7 @@ def main():
             placeholder="Selecione o tipo de conta...",
         )
         
-        if select_conta is None and not st.session_state.dados_carregados:
+        if select_conta is None:
             st.info('👆 Escolha um tipo de conta para prosseguir.')
             st.stop()
         
