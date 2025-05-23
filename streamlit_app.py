@@ -3,10 +3,23 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 import numpy as np
-import calendar
+import plotly.io as pio
 from datetime import datetime
 from millify import prettify
 import io
+
+# Configurar o locale para português brasileiro
+pio.templates.default = "plotly"
+pio.templates["plotly"]["layout"]["font"]["family"] = "Arial, sans-serif"
+
+# Configuração específica para números no formato brasileiro
+config_locale = {
+    "locale": "pt-BR",
+    "separators": ",.",  # vírgula para decimal, ponto para milhar
+    "currency": ["R$", ""]
+}
+# Aplicar configuração
+pio.templates["plotly"]["layout"]["separators"] = config_locale["separators"]
 
 MESES_PT = {1: 'Janeiro', 2: 'Fevereiro', 3: 'Março', 4: 'Abril',
             5: 'Maio', 6: 'Junho', 7: 'Julho', 8: 'Agosto',
@@ -17,6 +30,7 @@ MESES_ABREV_PT = {1: 'Jan', 2: 'Fev', 3: 'Mar', 4: 'Abr',
             5: 'Mai', 6: 'Jun', 7: 'Jul', 8: 'Ago',
             9: 'Set', 10: 'Out', 11: 'Nov', 12: 'Dez'
 }
+
 
 # Função para gerar dicionário de cores por ano
 def gerar_cores_por_ano(anos):
@@ -163,7 +177,9 @@ def criar_grafico_timeline(df, y_column, title, y_label, cores_por_ano):
         markers=True,
         color_discrete_map=cores_por_ano 
     )
-    
+    fig.update_traces(
+    hovertemplate='<b>Data:</b> %{x}<br><b>' + y_label + ':</b> %{y:,.2f}<extra></extra>'
+    )
     fig.update_layout(
         height=500,
         hovermode="x unified",
@@ -198,16 +214,35 @@ def criar_grafico_barras(df, y_column, title, y_label, cores_por_ano):
     cores_str = {str(ano):cor for ano,cor in cores_por_ano.items()}
 
     fig = px.bar(
-        df, 
+        df,  
         x='mes_ano', 
         y=y_column,
         color='ano_str', # Usar versão string do ano
         title=title,
         labels={y_column: y_label, 'mes_ano': 'Mês/Ano', 'ano_str': 'Ano'},
-        text_auto=True,
+        text_auto=False,
         color_discrete_map=cores_str # Usar o mapa de cores por ano
     )
-    
+    if 'valor' in y_column:
+        fig.update_traces(
+            texttemplate='%{y:,.2f}',
+            textposition='outside',
+            hovertemplate='<b>%{x}</b><br>' + y_label + ':%{y:,.2f}<extra></extra>'
+        )
+    else:
+        fig.update_traces(
+        texttemplate='%{y}',
+        textposition='outside',
+        hovertemplate='<b>%{x}</b><br>' + y_label + ': %{y}<extra></extra>'
+        )
+    if 'valor' in y_column:
+        fig.update_layout(
+            yaxis=dict(
+                tickprefix='R$ ',
+                tickformat=',.2f',
+            )
+        )
+
     fig.update_layout(
         height=400,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
@@ -234,7 +269,7 @@ def criar_grafico_comparativo(df, anos_selecionados, y_column, title, y_label, c
             name=f"Ano {ano}",
             line=dict(width=3, color=cores_por_ano[ano]),
             marker=dict(size=8, color=cores_por_ano[ano]),
-            hovertemplate=f'<b>Mês:</b> %{{x}}<br><b>{y_label}:</b> %{{y}}<extra></extra>'
+            hovertemplate='<b>Data:</b> %{x}<br><b>' + y_label + ':</b> %{y:,.2f}<extra></extra>'
         ))
     
     fig.update_layout(
@@ -255,7 +290,7 @@ def criar_grafico_comparativo(df, anos_selecionados, y_column, title, y_label, c
 
 # Função para formatar valores monetários
 def formatar_valor(valor):
-    return f"R$ {valor:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+    return f"{valor:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
 
 # Interface principal
 def main():
@@ -383,9 +418,9 @@ def main():
             st.metric(f"Total consumido ({unidade})", f"{prettify(df['consumo'].sum(),'.')}")
         
         with col2:
-            st.metric("Valor total", formatar_valor(df['valor'].sum()))
-            st.metric(f"Consumo médio mensal ({unidade})", f"{df['consumo'].mean():,.1f}".replace(',', '.'))
-            st.metric("Valor médio mensal", formatar_valor(df['valor'].mean()))
+            st.metric("Valor total (R$)", formatar_valor(df['valor'].sum()))
+            st.metric(f"Consumo médio mensal ({unidade})", f"{formatar_valor(df['consumo'].mean())}")
+            st.metric("Valor médio mensal (R$)", formatar_valor(df['valor'].mean()))
         
         # Slider para selecionar intervalo de datas
         min_date = df['data'].min().date()
@@ -497,10 +532,10 @@ def main():
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
-                    st.metric(f"Total consumido ({unidade})", f"{prettify(df['consumo'].sum(),'.')}")
+                    st.metric(f"Total consumido ({unidade})", f"{prettify(periodo_df['consumo'].sum(),'.')}")
                     
                 with col2:
-                    st.metric("Valor total", formatar_valor(periodo_df['valor'].sum()))
+                    st.metric("Valor total (R$)", formatar_valor(periodo_df['valor'].sum()))
                     
                 with col3:
                     st.metric(f"Média mensal ({unidade})", f"{periodo_df['consumo'].mean():,.1f}".replace(',', '.'))
