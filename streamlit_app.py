@@ -309,7 +309,7 @@ def main():
         
         ### Como usar:
         1. Selecione o tipo de fatura(água ou energia) com o botão abaixo;
-        2. Faça upload do seu arquivo de dados, ou use dados de exemplo;
+        2. Faça upload do seu arquivo de dados, ou use dados de exemplo para testar o sistema;
         3. Navegue pelas abas acima para visualizar diferentes análises;
         4. Dúvidas sobre como manejar os gráficos? Cada página possui uma nota de rodapé detalhando seu funcionamento!             
         """)
