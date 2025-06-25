@@ -317,7 +317,7 @@ def main():
         # Seleção do tipo de conta
         select_conta = st.selectbox(
             "Qual tipo de fatura será analisada?",
-            ('Conta de água(CAESB)', 'Conta de energia(CEB)'),
+            ('Conta de água(CAESB)', 'Conta de energia(CEB/Neoenergia)'),
             index=None,
             placeholder="Selecione o tipo de conta...",
         )
