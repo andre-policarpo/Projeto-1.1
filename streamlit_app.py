@@ -110,7 +110,7 @@ def processar_dados(file, tipo_conta):
             df['unidade'] = 'm³'
             df['tipo_medicao'] = 'água'
         else:
-            df['unidade'] = 'kWh'
+            df['unidade'] = 'KWh'
             df['tipo_medicao'] = 'energia'
         
         return df
@@ -129,7 +129,7 @@ def gerar_dados_exemplo(tipo_conta):
         min_consumo, max_consumo = 10, 50
         min_valor, max_valor = 50, 300
     else:
-        unidade = 'kWh'
+        unidade = 'KWh'
         tipo_medicao = 'energia'
         min_consumo, max_consumo = 150, 550
         min_valor, max_valor = 100, 500
@@ -415,7 +415,7 @@ def main():
         with col1:
             st.metric("Total de registros", len(df))
             st.metric("Período analisado", f"{df['mes_ano'].iloc[0]} a {df['mes_ano'].iloc[-1]}")
-            st.metric(f"Total consumido ({unidade})", f"{prettify(df['consumo'].sum(),'.')}")
+            st.metric(f"Total consumido ({unidade})", f"{formatar_valor(df['consumo'].sum())}")
         
         with col2:
             st.metric("Valor total (R$)", formatar_valor(df['valor'].sum()))
@@ -690,7 +690,7 @@ def main():
 
             Este gráfico de dispersão mostra a relação entre o consumo e o valor das faturas ao longo do tempo. Cada ponto representa uma fatura mensal, onde:
 
-            - O eixo horizontal (X) representa o consumo em unidades (kWh ou m³)
+            - O eixo horizontal (X) representa o consumo em unidades (KWh ou m³)
             - O eixo vertical (Y) representa o valor pago em reais (R$)
             - Cada cor representa um ano diferente, permitindo identificar padrões ao longo do tempo
             - A linha de tendência (tracejada) mostra a relação geral entre consumo e valor
