@@ -532,13 +532,13 @@ def main():
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
-                    st.metric(f"Total consumido ({unidade})", f"{prettify(periodo_df['consumo'].sum(),'.')}")
+                    st.metric(f"Total consumido ({unidade})", f"{formatar_valor(periodo_df['consumo'].sum())}")
                     
                 with col2:
                     st.metric("Valor total (R$)", formatar_valor(periodo_df['valor'].sum()))
                     
                 with col3:
-                    st.metric(f"Média mensal ({unidade})", f"{periodo_df['consumo'].mean():,.1f}".replace(',', '.'))
+                    st.metric(f"Média mensal ({unidade})", f"{formatar_valor(periodo_df['consumo'].mean())}")
                 
                 # Gráficos do período
                 st.subheader(f"Consumo de {tipo_medicao.capitalize()} no Período Selecionado")
