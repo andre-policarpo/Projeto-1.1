@@ -185,7 +185,7 @@ def criar_grafico_timeline(df, y_column, title, y_label, cores_por_ano):
         hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         xaxis=dict(
-            rangeslider=dict(visible=True),
+            rangeslider=dict(visible=False),
             type="date", 
             tickmode="array",
             tickvals=df['data'].tolist(), # Usar as datas exatas como valores
@@ -448,8 +448,8 @@ def main():
                 f"Consumo ({unidade})",
                 cores_por_ano
             )
-            st.plotly_chart(consumo_fig, use_container_width=True)
-            st.caption("Use o controle deslizante abaixo do gráfico para zoom ou os botões para selecionar períodos específicos.")
+            st.plotly_chart(consumo_fig, width='stretch')
+            st.caption("Use os botões acima do gráfico para selecionar períodos específicos.")
 
             st.subheader("Evolução do Valor das Faturas ao Longo do Tempo")
             valor_fig = criar_grafico_timeline(
@@ -459,8 +459,8 @@ def main():
                 "Valor (R$)",
                 cores_por_ano
             )
-            st.plotly_chart(valor_fig, use_container_width=True)
-            st.caption("Use o controle deslizante abaixo do gráfico para zoom ou os botões para selecionar períodos específicos.")
+            st.plotly_chart(valor_fig, width='stretch')
+            st.caption("Use os botões acima do gráfico para selecionar períodos específicos.")
             st.markdown("""
             #### Recursos interativos:
 
@@ -549,7 +549,7 @@ def main():
                     f"Consumo ({unidade})",
                     cores_por_ano
                 )
-                st.plotly_chart(consumo_periodo_fig, use_container_width=True)
+                st.plotly_chart(consumo_periodo_fig, width='stretch')
                 
                 st.subheader("Valor das Faturas no Período Selecionado")
                 valor_periodo_fig = criar_grafico_barras(
@@ -559,7 +559,7 @@ def main():
                     "Valor (R$)",
                     cores_por_ano
                 )
-                st.plotly_chart(valor_periodo_fig, use_container_width=True)
+                st.plotly_chart(valor_periodo_fig, width='stretch')
                 st.markdown("""
                 #### Recursos interativos:
 
@@ -613,7 +613,7 @@ def main():
                         f"Consumo ({unidade})",
                         cores_por_ano
                     )
-                    st.plotly_chart(fig_comp, use_container_width=True)
+                    st.plotly_chart(fig_comp, width='stretch')
                 else:
                     st.subheader("Comparativo de Valores das Faturas (R$)")
                     fig_comp = criar_grafico_comparativo(
@@ -624,7 +624,7 @@ def main():
                         "Valor (R$)",
                         cores_por_ano
                     )
-                    st.plotly_chart(fig_comp, use_container_width=True)
+                    st.plotly_chart(fig_comp, width='stretch')
                 
                 # Tabela comparativa por mês
                 with st.expander("Visualizar tabela comparativa"):
@@ -646,7 +646,7 @@ def main():
                         comp_data.append(row)
                     
                     comp_df = pd.DataFrame(comp_data)
-                    st.dataframe(comp_df, use_container_width=True)
+                    st.dataframe(comp_df, width='stretch')
         
         else:  # Consumo x Valor
             st.subheader("Relação entre Consumo e Valor")
@@ -672,7 +672,7 @@ def main():
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
             )
             
-            st.plotly_chart(scatter_fig, use_container_width=True)
+            st.plotly_chart(scatter_fig, width='stretch')
             
             # Calcular e exibir correlação
             correlacao = df['consumo'].corr(df['valor'])
